@@ -1,0 +1,20 @@
+# Maps Attendance.xlsx-style codes to compliance review statuses.
+# Source of truth for CSV attendance import columns: employee_email, date (ISO), code
+
+attendance_code_to_status:
+  P: null  # present — use Clockify hours for that day
+  WFH: null
+  WO: WEEK_OFF
+  EL: LEAVE
+  UL: LEAVE
+  HD: LEAVE
+  UHD: LEAVE
+  SL: LEAVE
+  PTL: LEAVE
+  ML: LEAVE
+  WL: LEAVE
+  "UHD/L/CL": LEAVE
+  "UHD/L/EL": LEAVE
+
+# Hackathon: often a specific calendar date in Book; use company_calendar type HACKATHON
+# Holiday: company_calendar HOLIDAY

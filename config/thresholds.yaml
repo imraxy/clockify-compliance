@@ -1,0 +1,21 @@
+# Daily compliance thresholds (hours). Policy from Clockify_Automation_Rulesets doc;
+# 6–8h band explicitly defined here for automation.
+
+approved_min_hours: 8.0
+half_filled_max_hours_exclusive: 8.0
+half_filled_min_hours_exclusive: 0
+# Hours in [0, 8) with any time logged: Half Filled (includes 6–8 band).
+# Zero hours on a required work day: Not Filled.
+
+anomaly_long_day_hours: 12.0
+anomaly_critical_day_hours: 14.0
+
+status_enum:
+  - APPROVED
+  - HALF_FILLED
+  - NOT_FILLED
+  - LEAVE
+  - HOLIDAY
+  - WEEK_OFF
+  - HACKATHON
+  - EXEMPT  # manual override / non-working day without WO code

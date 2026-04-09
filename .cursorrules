@@ -1,0 +1,21 @@
+# Clockify compliance automation — project rules
+
+## Context
+
+Read **`memory-bank/projectbrief.md`**, **`memory-bank/activeContext.md`**, and **`docs/README.md`** at task start. Sample data: root `*.xlsx` and `*.docx`.
+
+## Engineering
+
+- **TDD** for domain and ingestion; no merge behavior-only changes without tests (except documented hotfix + immediate test PR).
+- **No live Clockify** in unit/integration tests—fixtures or HTTP mocks only.
+- **Secrets**: never commit real keys; use `.env.example`.
+- Prefer **small, focused PRs**; match existing stack once scaffold exists.
+
+## Product
+
+- Primary UX: **web dashboard** (Book-style month grid); Excel export optional.
+- **Normalized** time-entry model for API + CSV import; **idempotent** merges.
+
+## Where the full plan lives
+
+Detailed phased plan (Clockify free tier, OSS options, readiness checklist): Cursor plan `clockify_automation_plan_123aa834` (typically `~/.cursor/plans/*.plan.md`). Copy into `docs/PLAN.md` if versioned in-repo is required.
