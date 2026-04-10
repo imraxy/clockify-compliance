@@ -202,6 +202,9 @@ def import_attendance_excel(db: Session, file_bytes: bytes) -> dict[str, Any]:
         if isinstance(cell_val, datetime):
             date_cols[col_num] = cell_val.date()
     
+    # Track processed user_id + date combinations to avoid duplicates within batch
+    processed: set[tuple[int, date]] = set()
+    
     # Process each employee row (starting from row 4)
     for row_num in range(4, ws.max_row + 1):
         email = str(ws.cell(row=row_num, column=email_col).value or "").strip().lower()
@@ -218,6 +221,12 @@ def import_attendance_excel(db: Session, file_bytes: bytes) -> dict[str, Any]:
             code = str(ws.cell(row=row_num, column=col_num).value or "").strip().upper()
             if not code or code in ["-", "", "NA", "N/A", "NONE"]:
                 continue
+            
+            # Skip if already processed this user_id + date in this batch
+            key = (user.id, d)
+            if key in processed:
+                continue
+            processed.add(key)
             
             try:
                 existing = db.scalars(
