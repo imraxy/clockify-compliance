@@ -4,10 +4,27 @@ import { type ComplianceMonth, fetchMonth, login, getApiUrl } from './api';
 
 type Page = 'dashboard' | 'reports' | 'import' | 'sync' | 'overrides' | 'jira' | 'settings';
 
+// Dark mode context
+function useDarkMode() {
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    if (saved) return saved === 'true';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('darkMode', String(darkMode));
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
+
+  return { darkMode, toggleDarkMode: () => setDarkMode(!darkMode) };
+}
+
 interface EmployeeStats {
   user_id: number;
   name: string;
   email: string;
+  role: string;
   approvedDays: number;
   notFilledDays: number;
   halfFilledDays: number;
@@ -18,26 +35,38 @@ interface EmployeeStats {
   avgHours: number;
 }
 
-interface MonthStats {
-  totalEmployees: number;
-  totalDays: number;
-  approvedPercent: number;
-  notFilledPercent: number;
-  anomalies: number;
-  topOffenders: EmployeeStats[];
+interface Notification {
+  id: number;
+  type: 'success' | 'error' | 'info';
+  message: string;
 }
 
 function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [user, setUser] = useState<{ email: string; full_name: string; role: string } | null>(null);
-  const [page, setPage] = useState<Page>('dashboard');
-  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState<Page>(() => localStorage.getItem('lastPage') as Page || 'dashboard');
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { darkMode, toggleDarkMode } = useDarkMode();
+
+  // Navigation history
+  const [navHistory, setNavHistory] = useState<Page[]>(['dashboard']);
 
   useEffect(() => {
     if (token) {
       fetchCurrentUser();
     }
   }, [token]);
+
+  useEffect(() => {
+    localStorage.setItem('lastPage', page);
+    setNavHistory(prev => prev[prev.length - 1] !== page ? [...prev.slice(-3), page] : prev);
+  }, [page]);
+
+  function addNotification(type: 'success' | 'error' | 'info', message: string) {
+    const id = Date.now();
+    setNotifications(prev => [...prev, { id, type, message }]);
+    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 4000);
+  }
 
   async function fetchCurrentUser() {
     try {
@@ -61,60 +90,166 @@ function App() {
     setUser(null);
   }
 
+  function goBack() {
+    if (navHistory.length > 1) {
+      const newHistory = navHistory.slice(0, -1);
+      setNavHistory(newHistory);
+      setPage(newHistory[newHistory.length - 1]);
+    }
+  }
+
   if (!token) {
-    return <LoginPage onLogin={setToken} />;
+    return <LoginPage onLogin={setToken} addNotification={addNotification} />;
   }
 
   return (
-    <div className="app-layout">
+    <div className="app-layout" data-theme={darkMode ? 'dark' : 'light'}>
+      {/* Notifications */}
+      <div className="notifications-container">
+        {notifications.map(n => (
+          <div key={n.id} className={`notification notification-${n.type}`} onClick={() => setNotifications(prev => prev.filter(x => x.id !== n.id))}>
+            <span className="notification-icon">
+              {n.type === 'success' ? '✅' : n.type === 'error' ? '❌' : 'ℹ️'}
+            </span>
+            <span>{n.message}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h2>🕐 Clockify</h2>
-          <p className="user-info">{user?.full_name || user?.email}</p>
-          <span className="role-badge">{user?.role}</span>
+          <div className="brand">
+            <span className="brand-icon">🕐</span>
+            <span className="brand-name">Clockify</span>
+          </div>
+          <div className="user-profile">
+            <div className="avatar">{user?.full_name?.charAt(0) || user?.email?.charAt(0) || '?'}</div>
+            <div className="user-details">
+              <span className="user-name">{user?.full_name || 'User'}</span>
+              <span className="role-badge">{user?.role}</span>
+            </div>
+          </div>
         </div>
+
         <nav className="sidebar-nav">
-          <button className={page === 'dashboard' ? 'active' : ''} onClick={() => setPage('dashboard')}>
-            📊 Dashboard
-          </button>
-          <button className={page === 'reports' ? 'active' : ''} onClick={() => setPage('reports')}>
-            📈 Reports
-          </button>
-          <button className={page === 'import' ? 'active' : ''} onClick={() => setPage('import')}>
-            📥 Import
-          </button>
-          <button className={page === 'sync' ? 'active' : ''} onClick={() => setPage('sync')}>
-            🔄 Sync
-          </button>
-          <button className={page === 'overrides' ? 'active' : ''} onClick={() => setPage('overrides')}>
-            ✏️ Overrides
-          </button>
-          <button className={page === 'jira' ? 'active' : ''} onClick={() => setPage('jira')}>
-            📋 Jira
-          </button>
-          <button className={page === 'settings' ? 'active' : ''} onClick={() => setPage('settings')}>
-            ⚙️ Settings
-          </button>
+          <NavItem icon="📊" label="Dashboard" page="dashboard" active={page === 'dashboard'} onClick={() => setPage('dashboard')} />
+          <NavItem icon="📈" label="Reports" page="reports" active={page === 'reports'} onClick={() => setPage('reports')} />
+          <NavItem icon="📥" label="Import" page="import" active={page === 'import'} onClick={() => setPage('import')} />
+          <NavItem icon="🔄" label="Sync" page="sync" active={page === 'sync'} onClick={() => setPage('sync')} />
+          <NavItem icon="✏️" label="Overrides" page="overrides" active={page === 'overrides'} onClick={() => setPage('overrides')} />
+          <NavItem icon="📋" label="Jira" page="jira" active={page === 'jira'} onClick={() => setPage('jira')} />
+          <div className="nav-divider" />
+          <NavItem icon="⚙️" label="Settings" page="settings" active={page === 'settings'} onClick={() => setPage('settings')} />
         </nav>
+
         <div className="sidebar-footer">
-          <button onClick={logout} className="logout-btn">Logout</button>
+          <button className="theme-toggle" onClick={toggleDarkMode}>
+            {darkMode ? '☀️ Light' : '🌙 Dark'}
+          </button>
+          <button className="logout-btn" onClick={logout}>
+            <span>🚪</span> Logout
+          </button>
         </div>
       </aside>
+
+      {/* Main Content */}
       <main className="main-content">
-        {error && <div className="error-banner">{error} <button onClick={() => setError(null)}>✕</button></div>}
-        {page === 'dashboard' && <DashboardPage token={token} />}
-        {page === 'reports' && <ReportsPage token={token} />}
-        {page === 'import' && <ImportPage token={token} setError={setError} />}
-        {page === 'sync' && <SyncPage token={token} setError={setError} />}
-        {page === 'overrides' && <OverridesPage token={token} />}
-        {page === 'jira' && <JiraPage token={token} />}
-        {page === 'settings' && <SettingsPage token={token} />}
+        {/* Top Bar */}
+        <header className="top-bar">
+          <div className="breadcrumb">
+            {navHistory.length > 1 && (
+              <button className="back-btn" onClick={goBack}>← Back</button>
+            )}
+            <span className="breadcrumb-path">
+              <span className="breadcrumb-home">🏠</span>
+              <span className="breadcrumb-sep">/</span>
+              <span className="breadcrumb-current">{getPageTitle(page)}</span>
+            </span>
+          </div>
+          <div className="top-actions">
+            <QuickSyncButton token={token} addNotification={addNotification} />
+            <div className="clock">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+          </div>
+        </header>
+
+        {/* Page Content */}
+        <div className="page-content">
+          {page === 'dashboard' && <DashboardPage token={token} addNotification={addNotification} />}
+          {page === 'reports' && <ReportsPage token={token} addNotification={addNotification} />}
+          {page === 'import' && <ImportPage token={token} addNotification={addNotification} />}
+          {page === 'sync' && <SyncPage token={token} addNotification={addNotification} />}
+          {page === 'overrides' && <OverridesPage token={token} />}
+          {page === 'jira' && <JiraPage token={token} addNotification={addNotification} />}
+          {page === 'settings' && <SettingsPage token={token} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />}
+        </div>
       </main>
     </div>
   );
 }
 
-function LoginPage({ onLogin }: { onLogin: (t: string) => void }) {
+function NavItem({ icon, label, page, active, onClick }: { icon: string; label: string; page: Page; active: boolean; onClick: () => void }) {
+  return (
+    <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}>
+      <span className="nav-icon">{icon}</span>
+      <span className="nav-label">{label}</span>
+      {active && <span className="nav-indicator" />}
+    </button>
+  );
+}
+
+function getPageTitle(page: Page): string {
+  const titles: Record<Page, string> = {
+    dashboard: 'Dashboard',
+    reports: 'Reports',
+    import: 'Import Data',
+    sync: 'Clockify Sync',
+    overrides: 'Overrides',
+    jira: 'Jira Variance',
+    settings: 'Settings'
+  };
+  return titles[page] || page;
+}
+
+function QuickSyncButton({ token, addNotification }: { token: string; addNotification: (t: 'success' | 'error' | 'info', m: string) => void }) {
+  const [syncing, setSyncing] = useState(false);
+
+  async function quickSync() {
+    setSyncing(true);
+    try {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 1);
+      const endDate = new Date();
+
+      const res = await fetch(`${getApiUrl()}/api/v1/sync/clockify`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start: startDate.toISOString().split('T')[0] + 'T00:00:00',
+          end: endDate.toISOString().split('T')[0] + 'T23:59:59'
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addNotification('success', `Synced ${data.imported_entries || 0} entries from Clockify`);
+      } else {
+        addNotification('error', data.detail || 'Sync failed');
+      }
+    } catch {
+      addNotification('error', 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  return (
+    <button className="quick-sync-btn" onClick={quickSync} disabled={syncing}>
+      {syncing ? '⏳' : '🔄'} {syncing ? 'Syncing...' : 'Quick Sync'}
+    </button>
+  );
+}
+
+function LoginPage({ onLogin, addNotification }: { onLogin: (t: string) => void; addNotification: (t: 'success' | 'error' | 'info', m: string) => void }) {
   const [email, setEmail] = useState('admin@example.com');
   const [password, setPassword] = useState('admin123');
   const [loading, setLoading] = useState(false);
@@ -127,6 +262,7 @@ function LoginPage({ onLogin }: { onLogin: (t: string) => void }) {
     try {
       const t = await login(email, password);
       onLogin(t);
+      addNotification('success', 'Welcome back!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -136,32 +272,53 @@ function LoginPage({ onLogin }: { onLogin: (t: string) => void }) {
 
   return (
     <div className="login-page">
+      <div className="login-background">
+        <div className="login-shapes">
+          <div className="shape shape-1" />
+          <div className="shape shape-2" />
+          <div className="shape shape-3" />
+        </div>
+      </div>
       <form className="login-card" onSubmit={handleLogin}>
-        <h1>🕐 Timesheet Compliance</h1>
-        <p className="subtitle">Sign in to continue</p>
-        {error && <div className="error">{error}</div>}
-        <label>
-          Email
-          <input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
-        </label>
-        <label>
-          Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
-        </label>
-        <button type="submit" disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</button>
+        <div className="login-header">
+          <span className="login-icon">🕐</span>
+          <h1>Timesheet Compliance</h1>
+          <p className="subtitle">Sign in to manage compliance</p>
+        </div>
+        {error && <div className="error-message">{error}</div>}
+        <div className="login-fields">
+          <label>
+            <span className="field-label">Email</span>
+            <div className="input-wrapper">
+              <span className="input-icon">📧</span>
+              <input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" placeholder="your@email.com" />
+            </div>
+          </label>
+          <label>
+            <span className="field-label">Password</span>
+            <div className="input-wrapper">
+              <span className="input-icon">🔒</span>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" placeholder="••••••••" />
+            </div>
+          </label>
+        </div>
+        <button type="submit" disabled={loading} className="login-btn">
+          {loading ? <span className="spinner" /> : 'Sign In'}
+        </button>
         <p className="hint">Demo: admin@example.com / admin123</p>
       </form>
     </div>
   );
 }
 
-function DashboardPage({ token }: { token: string }) {
+function DashboardPage({ token, addNotification }: { token: string; addNotification: (t: 'success' | 'error' | 'info', m: string) => void }) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [data, setData] = useState<ComplianceMonth | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCell, setSelectedCell] = useState<{ user: any; day: number } | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   async function loadMonth() {
     setLoading(true);
@@ -169,15 +326,13 @@ function DashboardPage({ token }: { token: string }) {
       const m = await fetchMonth(token, year, month);
       setData(m);
     } catch (err) {
-      console.error(err);
+      addNotification('error', 'Failed to load data');
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    loadMonth();
-  }, [year, month]);
+  useEffect(() => { loadMonth(); }, [year, month]);
 
   async function exportExcel() {
     const res = await fetch(`${getApiUrl()}/api/v1/compliance/month/export.xlsx?year=${year}&month=${month}`, {
@@ -190,6 +345,7 @@ function DashboardPage({ token }: { token: string }) {
       a.href = url;
       a.download = `compliance-${year}-${month}.xlsx`;
       a.click();
+      addNotification('success', 'Excel exported successfully');
     }
   }
 
@@ -197,7 +353,7 @@ function DashboardPage({ token }: { token: string }) {
 
   const filteredRows = useMemo(() => {
     if (!data) return [];
-    return data.rows.filter(row => 
+    return data.rows.filter(row =>
       row.full_name?.toLowerCase().includes(search.toLowerCase()) ||
       row.email.toLowerCase().includes(search.toLowerCase())
     );
@@ -236,38 +392,44 @@ function DashboardPage({ token }: { token: string }) {
           <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <input 
-            type="search" 
-            placeholder="🔍 Search employee..." 
-            value={search} 
+          <input
+            type="search"
+            placeholder="🔍 Search employee..."
+            value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="search-input"
           />
-          <button onClick={exportExcel} className="secondary">📥 Export Excel</button>
+          <button className="view-toggle" onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}>
+            {viewMode === 'grid' ? '📋 List' : '📊 Grid'}
+          </button>
+          <button onClick={exportExcel} className="btn-secondary">📥 Export Excel</button>
         </div>
       </div>
 
       {stats && (
         <div className="stats-grid">
-          <div className="stat-card approved"><span className="stat-icon">✅</span><h3>Approved</h3><p>{stats.approved}</p><small>{Math.round(stats.approved/stats.totalCells*100)}%</small></div>
-          <div className="stat-card warning"><span className="stat-icon">⚠️</span><h3>Not Filled</h3><p>{stats.notFilled}</p><small>{Math.round(stats.notFilled/stats.totalCells*100)}%</small></div>
-          <div className="stat-card info"><span className="stat-icon">🏖️</span><h3>Week Off</h3><p>{stats.weekOff}</p></div>
-          <div className="stat-card leave"><span className="stat-icon">📅</span><h3>Leave</h3><p>{stats.leave}</p></div>
-          <div className="stat-card danger"><span className="stat-icon">🚨</span><h3>Anomalies</h3><p>{stats.anomalies}</p></div>
-          <div className="stat-card hours"><span className="stat-icon">⏱️</span><h3>Total Hours</h3><p>{Math.round(stats.totalHours)}h</p></div>
+          <StatCard icon="✅" label="Approved" value={stats.approved} subtext={`${Math.round(stats.approved/stats.totalCells*100)}%`} color="success" />
+          <StatCard icon="⚠️" label="Not Filled" value={stats.notFilled} subtext={`${Math.round(stats.notFilled/stats.totalCells*100)}%`} color="warning" />
+          <StatCard icon="🏖️" label="Week Off" value={stats.weekOff} color="info" />
+          <StatCard icon="📅" label="Leave" value={stats.leave} color="purple" />
+          <StatCard icon="🚨" label="Anomalies" value={stats.anomalies} color="danger" />
+          <StatCard icon="⏱️" label="Total Hours" value={`${Math.round(stats.totalHours)}h`} color="primary" />
         </div>
       )}
 
-      {loading ? <div className="loading">Loading...</div> : data && (
+      {loading ? (
+        <div className="loading-state"><div className="spinner large" /><p>Loading compliance data...</p></div>
+      ) : data && (
         <div className="table-container">
           <div className="legend">
-            <span className="legend-item"><span className="badge compliant">CO</span> Compliant</span>
-            <span className="legend-item"><span className="badge not-filled">NF</span> Not Filled</span>
-            <span className="legend-item"><span className="badge half-filled">HF</span> Half Filled</span>
-            <span className="legend-item"><span className="badge week-off">WO</span> Week Off</span>
-            <span className="legend-item"><span className="badge leave">LV</span> Leave</span>
-            <span className="legend-item"><span className="badge anomaly">!</span> Anomaly</span>
+            <LegendItem badge="CO" label="Compliant" color="success" />
+            <LegendItem badge="NF" label="Not Filled" color="muted" />
+            <LegendItem badge="HF" label="Half Filled" color="warning" />
+            <LegendItem badge="WO" label="Week Off" color="purple" />
+            <LegendItem badge="LV" label="Leave" color="info" />
+            <LegendItem badge="!" label="Anomaly" color="danger" />
           </div>
+
           <table className="compliance-grid">
             <thead>
               <tr>
@@ -291,8 +453,8 @@ function DashboardPage({ token }: { token: string }) {
                     const status = cell?.status || '—';
                     const hasAnomaly = cell?.anomalies?.length > 0;
                     return (
-                      <td 
-                        key={d} 
+                      <td
+                        key={d}
                         className={`status-cell status-${status.toLowerCase().replace('_', '-')} ${hasAnomaly ? 'has-anomaly' : ''}`}
                         onClick={() => setSelectedCell({ user: row, day: d })}
                         title={cell ? `${status} - ${cell.hours}h${hasAnomaly ? ' - Anomaly!' : ''}` : ''}
@@ -310,23 +472,41 @@ function DashboardPage({ token }: { token: string }) {
       )}
 
       {selectedCell && (
-        <div className="cell-detail-modal" onClick={() => setSelectedCell(null)}>
+        <div className="modal-overlay" onClick={() => setSelectedCell(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>{selectedCell.user.full_name} - Day {selectedCell.day}</h3>
+            <div className="modal-header">
+              <h3>{selectedCell.user.full_name} - Day {selectedCell.day}</h3>
+              <button className="modal-close" onClick={() => setSelectedCell(null)}>×</button>
+            </div>
             {selectedCell.user.days[selectedCell.day] && (
-              <div className="detail-info">
-                <p><strong>Status:</strong> {selectedCell.user.days[selectedCell.day].status}</p>
-                <p><strong>Hours:</strong> {selectedCell.user.days[selectedCell.day].hours}h</p>
-                <p><strong>Attendance:</strong> {selectedCell.user.days[selectedCell.day].attendance_code || '—'}</p>
+              <div className="modal-body">
+                <div className="detail-row">
+                  <span className="detail-label">Status</span>
+                  <span className={`detail-value status-badge-${selectedCell.user.days[selectedCell.day].status.toLowerCase().replace('_', '-')}`}>
+                    {selectedCell.user.days[selectedCell.day].status}
+                  </span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">Hours</span>
+                  <span className="detail-value">{selectedCell.user.days[selectedCell.day].hours}h</span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">Attendance</span>
+                  <span className="detail-value">{selectedCell.user.days[selectedCell.day].attendance_code || '—'}</span>
+                </div>
                 {selectedCell.user.days[selectedCell.day].anomalies?.length > 0 && (
-                  <div className="anomalies-list">
-                    <strong>Anomalies:</strong>
-                    <ul>{selectedCell.user.days[selectedCell.day].anomalies.map((a: string, i: number) => <li key={i}>{a}</li>)}</ul>
+                  <div className="anomalies-section">
+                    <span className="anomalies-label">⚠️ Anomalies</span>
+                    <ul className="anomalies-list">
+                      {selectedCell.user.days[selectedCell.day].anomalies.map((a: string, i: number) => <li key={i}>{a}</li>)}
+                    </ul>
                   </div>
                 )}
               </div>
             )}
-            <button onClick={() => setSelectedCell(null)}>Close</button>
+            <div className="modal-footer">
+              <button className="btn-primary" onClick={() => setSelectedCell(null)}>Close</button>
+            </div>
           </div>
         </div>
       )}
@@ -334,7 +514,29 @@ function DashboardPage({ token }: { token: string }) {
   );
 }
 
-function ReportsPage({ token }: { token: string }) {
+function StatCard({ icon, label, value, subtext, color }: { icon: string; label: string; value: string | number; subtext?: string; color: string }) {
+  return (
+    <div className={`stat-card stat-${color}`}>
+      <span className="stat-icon">{icon}</span>
+      <div className="stat-content">
+        <h3 className="stat-label">{label}</h3>
+        <p className="stat-value">{value}</p>
+        {subtext && <small className="stat-subtext">{subtext}</small>}
+      </div>
+    </div>
+  );
+}
+
+function LegendItem({ badge, label, color }: { badge: string; label: string; color: string }) {
+  return (
+    <span className="legend-item">
+      <span className={`badge badge-${color}`}>{badge}</span>
+      <span className="legend-text">{label}</span>
+    </span>
+  );
+}
+
+function ReportsPage({ token, addNotification }: { token: string; addNotification: (t: 'success' | 'error' | 'info', m: string) => void }) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [data, setData] = useState<ComplianceMonth | null>(null);
@@ -347,15 +549,13 @@ function ReportsPage({ token }: { token: string }) {
       const m = await fetchMonth(token, year, month);
       setData(m);
     } catch (err) {
-      console.error(err);
+      addNotification('error', 'Failed to load report data');
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    loadMonth();
-  }, [year, month]);
+  useEffect(() => { loadMonth(); }, [year, month]);
 
   const dayNumbers = Array.from({ length: new Date(year, month, 0).getDate() }, (_, i) => i + 1);
 
@@ -374,8 +574,20 @@ function ReportsPage({ token }: { token: string }) {
         }
         if (cell.anomalies?.length > 0) anomalyDays++;
       });
-      const avgHours = approved > 0 ? totalHours / approved : 0;
-      return { user_id: row.user_id, name: row.full_name || row.email, email: row.email, role: row.role, approvedDays: approved, notFilledDays: notFilled, halfFilledDays: halfFilled, weekOffDays: weekOff, leaveDays: leave, anomalyDays, totalHours: Math.round(totalHours), avgHours: Math.round(avgHours * 10) / 10 };
+      return {
+        user_id: row.user_id,
+        name: row.full_name || row.email,
+        email: row.email,
+        role: row.role,
+        approvedDays: approved,
+        notFilledDays: notFilled,
+        halfFilledDays: halfFilled,
+        weekOffDays: weekOff,
+        leaveDays: leave,
+        anomalyDays,
+        totalHours: Math.round(totalHours),
+        avgHours: Math.round((approved > 0 ? totalHours / approved : 0) * 10) / 10
+      };
     }).sort((a, b) => b.notFilledDays - a.notFilledDays);
   }, [data]);
 
@@ -425,6 +637,7 @@ function ReportsPage({ token }: { token: string }) {
       a.href = url;
       a.download = `compliance-digest-${year}-${month}.txt`;
       a.click();
+      addNotification('success', 'Digest exported');
     }
   }
 
@@ -441,7 +654,7 @@ function ReportsPage({ token }: { token: string }) {
           <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <button onClick={exportDigest} className="secondary">📄 Export Digest</button>
+          <button onClick={exportDigest} className="btn-secondary">📄 Export Digest</button>
         </div>
       </div>
 
@@ -451,28 +664,30 @@ function ReportsPage({ token }: { token: string }) {
         <button className={reportType === 'anomalies' ? 'active' : ''} onClick={() => setReportType('anomalies')}>🚨 Anomalies</button>
       </div>
 
-      {loading ? <div className="loading">Loading...</div> : (
+      {loading ? (
+        <div className="loading-state"><div className="spinner large" /><p>Loading reports...</p></div>
+      ) : (
         <>
           {reportType === 'summary' && monthStats && (
             <div className="report-summary">
               <div className="summary-grid">
-                <div className="summary-card"><h3>Total Employees</h3><p className="big-num">{monthStats.totalEmployees}</p></div>
-                <div className="summary-card"><h3>Working Days</h3><p className="big-num">{monthStats.totalDays}</p></div>
-                <div className="summary-card success"><h3>Approved Rate</h3><p className="big-num">{monthStats.approvedPercent}%</p></div>
-                <div className="summary-card warning"><h3>Not Filled Rate</h3><p className="big-num">{monthStats.notFilledPercent}%</p></div>
-                <div className="summary-card danger"><h3>Total Anomalies</h3><p className="big-num">{monthStats.anomalies}</p></div>
+                <SummaryCard label="Total Employees" value={monthStats.totalEmployees} />
+                <SummaryCard label="Working Days" value={monthStats.totalDays} />
+                <SummaryCard label="Approved Rate" value={`${monthStats.approvedPercent}%`} color="success" />
+                <SummaryCard label="Not Filled Rate" value={`${monthStats.notFilledPercent}%`} color="warning" />
+                <SummaryCard label="Total Anomalies" value={monthStats.anomalies} color="danger" />
               </div>
 
               {monthStats.topOffenders.length > 0 && (
-                <div className="top-offenders">
-                  <h3>⚠️ Top Employees with Missing Timesheets</h3>
+                <div className="top-offenders card">
+                  <h3 className="card-title">⚠️ Top Employees with Missing Timesheets</h3>
                   <table className="data-table">
-                    <thead><tr><th>Employee</th><th>Not Filled Days</th><th>Approved Days</th><th>Total Hours</th></tr></thead>
+                    <thead><tr><th>Employee</th><th>Not Filled</th><th>Approved</th><th>Total Hours</th></tr></thead>
                     <tbody>
                       {monthStats.topOffenders.map(e => (
-                        <tr key={e.user_id}>
+                        <tr key={e.user_id} className="row-warning">
                           <td>{e.name}</td>
-                          <td className="danger">{e.notFilledDays}</td>
+                          <td className="text-danger">{e.notFilledDays}</td>
                           <td>{e.approvedDays}</td>
                           <td>{e.totalHours}h</td>
                         </tr>
@@ -485,21 +700,21 @@ function ReportsPage({ token }: { token: string }) {
           )}
 
           {reportType === 'employee' && (
-            <div className="employee-report">
-              <h3>Employee-wise Breakdown</h3>
+            <div className="card">
+              <h3 className="card-title">Employee-wise Breakdown</h3>
               <table className="data-table sortable">
                 <thead>
                   <tr>
                     <th>Employee</th>
                     <th>Role</th>
-                    <th>✅ Approved</th>
-                    <th>⚠️ Not Filled</th>
-                    <th>📊 Half Filled</th>
+                    <th className="col-success">✅ Approved</th>
+                    <th className="col-warning">⚠️ Not Filled</th>
+                    <th>📊 Half</th>
                     <th>🏖️ Week Off</th>
                     <th>📅 Leave</th>
-                    <th>🚨 Anomalies</th>
-                    <th>⏱️ Total Hours</th>
-                    <th>📈 Avg Hours</th>
+                    <th className="col-danger">🚨 Anomalies</th>
+                    <th>⏱️ Hours</th>
+                    <th>📈 Avg</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -507,12 +722,12 @@ function ReportsPage({ token }: { token: string }) {
                     <tr key={e.user_id} className={e.notFilledDays > 5 ? 'row-warning' : ''}>
                       <td>{e.name}</td>
                       <td>{e.role}</td>
-                      <td className="success">{e.approvedDays}</td>
-                      <td className={e.notFilledDays > 5 ? 'danger' : ''}>{e.notFilledDays}</td>
+                      <td className="text-success">{e.approvedDays}</td>
+                      <td className={e.notFilledDays > 5 ? 'text-danger' : ''}>{e.notFilledDays}</td>
                       <td>{e.halfFilledDays}</td>
                       <td>{e.weekOffDays}</td>
                       <td>{e.leaveDays}</td>
-                      <td className={e.anomalyDays > 0 ? 'warning' : ''}>{e.anomalyDays}</td>
+                      <td className={e.anomalyDays > 0 ? 'text-warning' : ''}>{e.anomalyDays}</td>
                       <td>{e.totalHours}h</td>
                       <td>{e.avgHours}h</td>
                     </tr>
@@ -523,19 +738,19 @@ function ReportsPage({ token }: { token: string }) {
           )}
 
           {reportType === 'anomalies' && (
-            <div className="anomaly-report">
-              <h3>Anomaly Details</h3>
+            <div className="card">
+              <h3 className="card-title">Anomaly Details</h3>
               {anomalyList.length === 0 ? (
-                <div className="empty-state">✅ No anomalies detected this month!</div>
+                <div className="empty-state"><span className="empty-icon">✅</span><p>No anomalies detected this month!</p></div>
               ) : (
                 <table className="data-table">
-                  <thead><tr><th>Employee</th><th>Day</th><th>Anomaly</th><th>Hours Logged</th></tr></thead>
+                  <thead><tr><th>Employee</th><th>Day</th><th>Anomaly</th><th>Hours</th></tr></thead>
                   <tbody>
                     {anomalyList.map((a, i) => (
                       <tr key={i}>
                         <td>{a.user}</td>
                         <td>Day {a.day}</td>
-                        <td className="anomaly-text">{a.anomaly}</td>
+                        <td className="text-danger">{a.anomaly}</td>
                         <td>{a.hours}h</td>
                       </tr>
                     ))}
@@ -550,16 +765,23 @@ function ReportsPage({ token }: { token: string }) {
   );
 }
 
-function ImportPage({ token, setError }: { token: string; setError: (e: string | null) => void }) {
+function SummaryCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
+  return (
+    <div className={`summary-card ${color ? `summary-${color}` : ''}`}>
+      <h3>{label}</h3>
+      <p className="big-num">{value}</p>
+    </div>
+  );
+}
+
+function ImportPage({ token, addNotification }: { token: string; addNotification: (t: 'success' | 'error' | 'info', m: string) => void }) {
   const [attendanceFile, setAttendanceFile] = useState<File | null>(null);
   const [timeEntriesFile, setTimeEntriesFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
 
   async function uploadAttendance() {
     if (!attendanceFile) return;
     setLoading(true);
-    setResult(null);
     try {
       const formData = new FormData();
       formData.append('file', attendanceFile);
@@ -570,12 +792,13 @@ function ImportPage({ token, setError }: { token: string; setError: (e: string |
       });
       const data = await res.json();
       if (res.ok) {
-        setResult(`✅ Imported ${data.rows} attendance records${data.errors?.length ? ` (${data.errors.length} errors)` : ''}`);
+        addNotification('success', `Imported ${data.rows} attendance records`);
+        setAttendanceFile(null);
       } else {
-        setError(data.detail || 'Import failed');
+        addNotification('error', data.detail || 'Import failed');
       }
-    } catch (err) {
-      setError('Upload failed');
+    } catch {
+      addNotification('error', 'Upload failed');
     } finally {
       setLoading(false);
     }
@@ -584,7 +807,6 @@ function ImportPage({ token, setError }: { token: string; setError: (e: string |
   async function uploadTimeEntries() {
     if (!timeEntriesFile) return;
     setLoading(true);
-    setResult(null);
     try {
       const formData = new FormData();
       formData.append('file', timeEntriesFile);
@@ -595,12 +817,13 @@ function ImportPage({ token, setError }: { token: string; setError: (e: string |
       });
       const data = await res.json();
       if (res.ok) {
-        setResult(`✅ Imported ${data.imported || data.rows} time entries`);
+        addNotification('success', `Imported ${data.imported || data.rows} time entries`);
+        setTimeEntriesFile(null);
       } else {
-        setError(data.detail || 'Import failed');
+        addNotification('error', data.detail || 'Import failed');
       }
-    } catch (err) {
-      setError('Upload failed');
+    } catch {
+      addNotification('error', 'Upload failed');
     } finally {
       setLoading(false);
     }
@@ -608,59 +831,65 @@ function ImportPage({ token, setError }: { token: string; setError: (e: string |
 
   return (
     <div className="page">
-      <h1>📥 Import Data</h1>
-      
+      <h1 className="page-title">📥 Import Data</h1>
+
       <div className="import-cards">
-        <div className="import-card">
-          <div className="import-icon">📋</div>
-          <h2>Attendance Import</h2>
-          <p>Upload Attendance.xlsx with employee attendance codes (P, WO, EL, WFH, HD, etc.)</p>
-          <div className="upload-row">
-            <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => setAttendanceFile(e.target.files?.[0] || null)} />
-            <button onClick={uploadAttendance} disabled={!attendanceFile || loading} className="primary">
-              {loading ? '⏳ Uploading...' : '📤 Upload Attendance'}
-            </button>
+        <div className="import-card card">
+          <div className="import-header">
+            <span className="import-icon">📋</span>
+            <h2>Attendance Import</h2>
           </div>
+          <p>Upload Attendance.xlsx with employee attendance codes (P, WO, EL, WFH, HD, etc.)</p>
+          <div className="upload-area">
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => setAttendanceFile(e.target.files?.[0] || null)} id="attendance-upload" className="file-input" />
+            <label htmlFor="attendance-upload" className="file-label">
+              {attendanceFile ? `📄 ${attendanceFile.name}` : 'Drop file or click to browse'}
+            </label>
+          </div>
+          <button onClick={uploadAttendance} disabled={!attendanceFile || loading} className="btn-primary btn-block">
+            {loading ? <><span className="spinner" /> Uploading...</> : '📤 Upload Attendance'}
+          </button>
         </div>
 
-        <div className="import-card">
-          <div className="import-icon">⏱️</div>
-          <h2>Time Entries Import</h2>
-          <p>Upload Clockify time entries CSV export</p>
-          <div className="upload-row">
-            <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setTimeEntriesFile(e.target.files?.[0] || null)} />
-            <button onClick={uploadTimeEntries} disabled={!timeEntriesFile || loading} className="primary">
-              {loading ? '⏳ Uploading...' : '📤 Upload Time Entries'}
-            </button>
+        <div className="import-card card">
+          <div className="import-header">
+            <span className="import-icon">⏱️</span>
+            <h2>Time Entries Import</h2>
           </div>
+          <p>Upload Clockify time entries CSV/Excel export</p>
+          <div className="upload-area">
+            <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setTimeEntriesFile(e.target.files?.[0] || null)} id="timeentries-upload" className="file-input" />
+            <label htmlFor="timeentries-upload" className="file-label">
+              {timeEntriesFile ? `📄 ${timeEntriesFile.name}` : 'Drop file or click to browse'}
+            </label>
+          </div>
+          <button onClick={uploadTimeEntries} disabled={!timeEntriesFile || loading} className="btn-primary btn-block">
+            {loading ? <><span className="spinner" /> Uploading...</> : '📤 Upload Time Entries'}
+          </button>
         </div>
       </div>
-
-      {result && <div className="success-banner">{result}</div>}
     </div>
   );
 }
 
-function SyncPage({ token, setError }: { token: string; setError: (e: string | null) => void }) {
+function SyncPage({ token, addNotification }: { token: string; addNotification: (t: 'success' | 'error' | 'info', m: string) => void }) {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(() => localStorage.getItem('clockify_last_sync'));
   const [syncResult, setSyncResult] = useState<{ entries: number; errors: string[] } | null>(null);
+  const [days, setDays] = useState(7);
 
   async function runSync() {
     setSyncing(true);
     setSyncResult(null);
     try {
       const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 7);
+      startDate.setDate(startDate.getDate() - days);
       const endDate = new Date();
-      
+
       const res = await fetch(`${getApiUrl()}/api/v1/sync/clockify`, {
         method: 'POST',
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           start: startDate.toISOString().split('T')[0] + 'T00:00:00',
           end: endDate.toISOString().split('T')[0] + 'T23:59:59'
         })
@@ -671,11 +900,12 @@ function SyncPage({ token, setError }: { token: string; setError: (e: string | n
         setLastSync(now);
         localStorage.setItem('clockify_last_sync', now);
         setSyncResult({ entries: data.imported_entries || 0, errors: data.errors || [] });
+        addNotification('success', `Synced ${data.imported_entries || 0} entries`);
       } else {
-        setError(data.detail || 'Sync failed');
+        addNotification('error', data.detail || 'Sync failed');
       }
-    } catch (err) {
-      setError('Sync failed');
+    } catch {
+      addNotification('error', 'Sync failed');
     } finally {
       setSyncing(false);
     }
@@ -683,40 +913,47 @@ function SyncPage({ token, setError }: { token: string; setError: (e: string | n
 
   return (
     <div className="page">
-      <h1>🔄 Clockify Sync</h1>
-      
-      <div className="sync-status-card">
+      <h1 className="page-title">🔄 Clockify Sync</h1>
+
+      <div className="sync-status-card card">
         <div className="sync-info">
           <h2>Automatic Sync</h2>
-          <p>✅ Daily sync runs automatically at midnight (5:30 AM IST)</p>
+          <p className="sync-status">✅ Daily sync runs automatically at midnight (5:30 AM IST)</p>
           {lastSync && <p className="last-sync">Last sync: {lastSync}</p>}
         </div>
         <div className="sync-actions">
-          <button onClick={runSync} disabled={syncing} className="primary large">
-            {syncing ? '⏳ Syncing...' : '🔄 Sync Now (Last 7 Days)'}
+          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            <option value="1">Last 1 day</option>
+            <option value="7">Last 7 days</option>
+            <option value="14">Last 14 days</option>
+            <option value="30">Last 30 days</option>
+          </select>
+          <button onClick={runSync} disabled={syncing} className="btn-primary btn-large">
+            {syncing ? <><span className="spinner" /> Syncing...</> : '🔄 Sync Now'}
           </button>
         </div>
       </div>
 
       {syncResult && (
-        <div className="sync-result">
+        <div className="sync-result card">
           <h3>✅ Sync Complete</h3>
           <p><strong>Entries imported:</strong> {syncResult.entries}</p>
           {syncResult.errors.length > 0 && (
             <div className="sync-errors">
-              <strong>Errors:</strong>
+              <strong>⚠️ Errors:</strong>
               <ul>{syncResult.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>
             </div>
           )}
         </div>
       )}
 
-      <div className="sync-help">
+      <div className="sync-help card">
         <h3>ℹ️ How it works</h3>
-        <ul>
+        <ul className="help-list">
           <li>API credentials are pre-configured in the server</li>
-          <li>Manual sync pulls last 7 days of time entries</li>
+          <li>Manual sync pulls data from your Clockify workspace</li>
           <li>Automatic sync runs daily to keep data fresh</li>
+          <li>All synced entries are matched with attendance records</li>
         </ul>
       </div>
     </div>
@@ -749,26 +986,22 @@ function OverridesPage({ token }: { token: string }) {
 
   return (
     <div className="page">
-      <h1>✏️ Overrides</h1>
-      <p>Manager-approved exceptions to compliance rules</p>
-      
-      {loading ? <div className="loading">Loading...</div> : (
-        <div className="overrides-container">
+      <h1 className="page-title">✏️ Overrides</h1>
+      <p className="page-subtitle">Manager-approved exceptions to compliance rules</p>
+
+      {loading ? (
+        <div className="loading-state"><div className="spinner large" /><p>Loading overrides...</p></div>
+      ) : (
+        <div className="card">
           {overrides.length === 0 ? (
             <div className="empty-state">
+              <span className="empty-icon">📭</span>
               <p>No overrides configured yet</p>
-              <p className="hint">Overrides allow managers to approve exceptions like extra hours, weekend work, or missed entries</p>
+              <p className="hint">Overrides allow managers to approve exceptions</p>
             </div>
           ) : (
             <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Date</th>
-                  <th>Reason</th>
-                  <th>Approved By</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Employee</th><th>Date</th><th>Reason</th><th>Approved By</th></tr></thead>
               <tbody>
                 {overrides.map((o, i) => (
                   <tr key={i}>
@@ -787,7 +1020,7 @@ function OverridesPage({ token }: { token: string }) {
   );
 }
 
-function JiraPage({ token }: { token: string }) {
+function JiraPage({ token, addNotification }: { token: string; addNotification: (t: 'success' | 'error' | 'info', m: string) => void }) {
   const [jiraHost, setJiraHost] = useState('');
   const [jiraUser, setJiraUser] = useState('');
   const [jiraToken, setJiraToken] = useState('');
@@ -795,7 +1028,10 @@ function JiraPage({ token }: { token: string }) {
   const [loading, setLoading] = useState(false);
 
   async function fetchVariance() {
-    if (!jiraHost || !jiraUser || !jiraToken) return;
+    if (!jiraHost || !jiraUser || !jiraToken) {
+      addNotification('error', 'Please fill all Jira credentials');
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`${getApiUrl()}/api/v1/jira/variance?jira_host=${encodeURIComponent(jiraHost)}&jira_user=${encodeURIComponent(jiraUser)}&jira_token=${encodeURIComponent(jiraToken)}`, {
@@ -804,9 +1040,12 @@ function JiraPage({ token }: { token: string }) {
       if (res.ok) {
         const data = await res.json();
         setVariance(data.issues || []);
+        addNotification('success', `Loaded ${data.issues?.length || 0} Jira issues`);
+      } else {
+        addNotification('error', 'Failed to fetch Jira data');
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      addNotification('error', 'Jira connection failed');
     } finally {
       setLoading(false);
     }
@@ -814,59 +1053,78 @@ function JiraPage({ token }: { token: string }) {
 
   return (
     <div className="page">
-      <h1>📋 Jira Variance Report</h1>
-      <p>Compare estimated vs actual hours from Jira issues</p>
+      <h1 className="page-title">📋 Jira Variance Report</h1>
+      <p className="page-subtitle">Compare estimated vs actual hours from Jira issues</p>
 
-      <div className="form-card">
-        <h3>Connect to Jira</h3>
+      <div className="card">
+        <h3 className="card-title">Connect to Jira</h3>
         <div className="form-grid">
-          <label>Jira Host <input value={jiraHost} onChange={(e) => setJiraHost(e.target.value)} placeholder="yourcompany.atlassian.net" /></label>
-          <label>Jira Email <input value={jiraUser} onChange={(e) => setJiraUser(e.target.value)} placeholder="you@company.com" /></label>
-          <label>API Token <input type="password" value={jiraToken} onChange={(e) => setJiraToken(e.target.value)} placeholder="Jira API token" /></label>
+          <div className="form-field">
+            <label>Jira Host</label>
+            <input value={jiraHost} onChange={(e) => setJiraHost(e.target.value)} placeholder="yourcompany.atlassian.net" />
+          </div>
+          <div className="form-field">
+            <label>Jira Email</label>
+            <input value={jiraUser} onChange={(e) => setJiraUser(e.target.value)} placeholder="you@company.com" />
+          </div>
+          <div className="form-field">
+            <label>API Token</label>
+            <input type="password" value={jiraToken} onChange={(e) => setJiraToken(e.target.value)} placeholder="Jira API token" />
+          </div>
         </div>
-        <button onClick={fetchVariance} disabled={!jiraHost || !jiraUser || !jiraToken || loading} className="primary">
-          {loading ? '⏳ Fetching...' : '📊 Fetch Variance'}
+        <button onClick={fetchVariance} disabled={!jiraHost || !jiraUser || !jiraToken || loading} className="btn-primary">
+          {loading ? <><span className="spinner" /> Fetching...</> : '📊 Fetch Variance'}
         </button>
       </div>
 
       {variance && (
-        <table className="data-table">
-          <thead>
-            <tr><th>Issue</th><th>Summary</th><th>Estimated</th><th>Actual</th><th>Variance</th></tr>
-          </thead>
-          <tbody>
-            {variance.map((v, i) => (
-              <tr key={i}>
-                <td><a href={`https://${jiraHost}/browse/${v.key}`} target="_blank">{v.key}</a></td>
-                <td>{v.summary}</td>
-                <td>{v.estimated}h</td>
-                <td>{v.actual}h</td>
-                <td className={v.variance > 0 ? 'danger' : 'success'}>{v.variance > 0 ? '+' : ''}{v.variance}h</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="card">
+          <table className="data-table">
+            <thead><tr><th>Issue</th><th>Summary</th><th>Estimated</th><th>Actual</th><th>Variance</th></tr></thead>
+            <tbody>
+              {variance.map((v, i) => (
+                <tr key={i}>
+                  <td><a href={`https://${jiraHost}/browse/${v.key}`} target="_blank" className="link">{v.key}</a></td>
+                  <td>{v.summary}</td>
+                  <td>{v.estimated}h</td>
+                  <td>{v.actual}h</td>
+                  <td className={v.variance > 0 ? 'text-danger' : 'text-success'}>{v.variance > 0 ? '+' : ''}{v.variance}h</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
 }
 
-function SettingsPage({ token }: { token: string }) {
+function SettingsPage({ token, darkMode, toggleDarkMode }: { token: string; darkMode: boolean; toggleDarkMode: () => void }) {
   return (
     <div className="page">
-      <h1>⚙️ Settings</h1>
-      
+      <h1 className="page-title">⚙️ Settings</h1>
+
       <div className="settings-grid">
-        <div className="settings-card">
+        <div className="settings-card card">
+          <h2>🎨 Appearance</h2>
+          <div className="setting-row">
+            <span className="setting-label">Theme</span>
+            <button className={`theme-btn ${darkMode ? 'dark' : 'light'}`} onClick={toggleDarkMode}>
+              {darkMode ? '🌙 Dark Mode' : '☀️ Light Mode'}
+            </button>
+          </div>
+        </div>
+
+        <div className="settings-card card">
           <h2>📊 Compliance Thresholds</h2>
           <p>Configured in <code>config/thresholds.yaml</code></p>
           <ul className="settings-list">
-            <li><strong>Minimum hours for approval:</strong> 8 hours/day</li>
-            <li><strong>Anomaly threshold:</strong> 12 hours/day (flagged as overwork)</li>
+            <li><strong>Minimum hours:</strong> 8 hours/day</li>
+            <li><strong>Anomaly threshold:</strong> 12 hours/day</li>
           </ul>
         </div>
 
-        <div className="settings-card">
+        <div className="settings-card card">
           <h2>📋 Attendance Codes</h2>
           <p>Configured in <code>config/attendance_mapping.yaml</code></p>
           <div className="code-list">
@@ -879,14 +1137,14 @@ function SettingsPage({ token }: { token: string }) {
           </div>
         </div>
 
-        <div className="settings-card">
+        <div className="settings-card card">
           <h2>🔗 API Configuration</h2>
-          <p>Base URL: <code>{getApiUrl()}</code></p>
-          <p>API Docs: <a href={`${getApiUrl()}/docs`} target="_blank">OpenAPI Documentation</a></p>
-          <p>Health Check: <a href={`${getApiUrl()}/api/v1/health`} target="_blank">System Status</a></p>
+          <p>Base URL: <code className="inline-code">{getApiUrl()}</code></p>
+          <p>API Docs: <a href={`${getApiUrl()}/docs`} target="_blank" className="link">OpenAPI Documentation</a></p>
+          <p>Health: <a href={`${getApiUrl()}/api/v1/health`} target="_blank" className="link">System Status</a></p>
         </div>
 
-        <div className="settings-card">
+        <div className="settings-card card">
           <h2>🔄 Sync Schedule</h2>
           <p>Automatic sync runs daily at midnight (5:30 AM IST)</p>
           <p>Clockify workspace is pre-configured</p>
