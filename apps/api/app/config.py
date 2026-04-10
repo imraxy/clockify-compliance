@@ -7,6 +7,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _repo_config_dir() -> Path:
+    # In Docker container: /app/config is set via CONFIG_DIR env
+    # Locally: traverse up from apps/api/app to repo root
+    env_config = Path("/app/config")
+    if env_config.is_dir():
+        return env_config
     return Path(__file__).resolve().parents[3] / "config"
 
 
