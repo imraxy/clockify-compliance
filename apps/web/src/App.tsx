@@ -298,12 +298,18 @@ function ImportPage({ token, setError }: { token: string; setError: (e: string |
 }
 
 function SyncPage({ token, setError }: { token: string; setError: (e: string | null) => void }) {
-  const [apiKey, setApiKey] = useState('');
-  const [workspaceId, setWorkspaceId] = useState('');
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('clockify_api_key') || '');
+  const [workspaceId, setWorkspaceId] = useState(() => localStorage.getItem('clockify_workspace_id') || '');
   const [syncing, setSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [lastSync, setLastSync] = useState<string | null>(() => localStorage.getItem('clockify_last_sync'));
+
+  function saveCredentials() {
+    localStorage.setItem('clockify_api_key', apiKey);
+    localStorage.setItem('clockify_workspace_id', workspaceId);
+  }
 
   async function runSync() {
+    saveCredentials();
     setSyncing(true);
     try {
       const res = await fetch(`${getApiUrl()}/api/v1/sync/clockify`, {
@@ -316,7 +322,10 @@ function SyncPage({ token, setError }: { token: string; setError: (e: string | n
       });
       const data = await res.json();
       if (res.ok) {
-        setLastSync(new Date().toLocaleString());
+        const now = new Date().toLocaleString();
+        setLastSync(now);
+        localStorage.setItem('clockify_last_sync', now);
+        alert(`✅ Synced ${data.entries_count || 0} time entries`);
       } else {
         setError(data.detail || 'Sync failed');
       }
