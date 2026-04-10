@@ -1,4 +1,8 @@
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API = import.meta.env.VITE_API_URL || 'https://clockify.sublimitysoft.in'
+
+export function getApiUrl(): string {
+  return API
+}
 
 export async function login(email: string, password: string): Promise<string> {
   const r = await fetch(`${API}/api/v1/auth/login`, {
@@ -7,40 +11,39 @@ export async function login(email: string, password: string): Promise<string> {
     body: JSON.stringify({ email, password }),
   })
   if (!r.ok) {
-    const t = await r.text()
-    throw new Error(t || 'Login failed')
+    const data = await r.json().catch(() => ({}))
+    throw new Error(data.detail || 'Login failed')
   }
-  const data = (await r.json()) as { access_token: string }
+  const data = await r.json()
   return data.access_token
 }
 
-export type DayCell = {
-  date: string
-  status: string
-  hours: number
-  anomalies: string[]
-  attendance_code?: string | null
-}
-
-export type ComplianceRow = {
-  user_id: number
-  email: string
-  full_name: string
-  role: string
-  days: Record<string, DayCell>
-}
-
-export type ComplianceMonth = {
+export interface ComplianceMonth {
   year: number
   month: number
-  rows: ComplianceRow[]
+  rows: Array<{
+    user_id: number
+    email: string
+    full_name: string
+    role: string
+    days: Record<string, {
+      date: string
+      status: string
+      hours: number
+      anomalies: string[]
+      attendance_code: string | null
+    }>
+  }>
+  thresholds: {
+    approved_min_hours: number
+    anomaly_long_day_hours: number
+  }
 }
 
 export async function fetchMonth(token: string, year: number, month: number): Promise<ComplianceMonth> {
-  const params = new URLSearchParams({ year: String(year), month: String(month) })
-  const r = await fetch(`${API}/api/v1/compliance/month?${params}`, {
+  const r = await fetch(`${API}/api/v1/compliance/month?year=${year}&month=${month}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-  if (!r.ok) throw new Error(await r.text())
-  return r.json() as Promise<ComplianceMonth>
+  if (!r.ok) throw new Error('Failed to load month')
+  return r.json()
 }
