@@ -11,6 +11,7 @@ from app.config import load_yaml
 from app.models import AttendanceDay, CompanyCalendarDay, ComplianceOverride, TimeEntry, User
 from app.services.attendance_mapping import code_to_override_status
 from app.services.rules import ReviewStatus, TimeSlice, Thresholds, classify_day, load_thresholds, repeated_identical_blocks, total_hours, weekend_day
+from app.services.tz import entries_for_local_day_tz, get_app_timezone, local_date
 
 UTC = timezone.utc
 
@@ -20,19 +21,8 @@ def month_date_range(year: int, month: int) -> tuple[date, date]:
     return date(year, month, 1), date(year, month, last)
 
 
-def entries_for_local_day(entries: list[TimeEntry], day: date) -> list[TimeSlice]:
-    """Slice entries that overlap local calendar day (UTC boundary simplification: use entry start date)."""
-    out: list[TimeSlice] = []
-    for e in entries:
-        s = e.start
-        if s.tzinfo is None:
-            s = s.replace(tzinfo=UTC)
-        if s.date() == day:
-            en = e.end
-            if en.tzinfo is None:
-                en = en.replace(tzinfo=UTC)
-            out.append(TimeSlice(start=s, end=en, description=e.description, project_name=e.project_name))
-    return out
+# Backwards compatibility alias
+entries_for_local_day = entries_for_local_day_tz
 
 
 def build_month_grid(db: Session, year: int, month: int) -> dict[str, Any]:
@@ -50,11 +40,17 @@ def build_month_grid(db: Session, year: int, month: int) -> dict[str, Any]:
         ).all()
     }
 
+    # Query window: ±2 days to catch entries that span local midnight
+    # (e.g., IST entry starting at 23:00 local = 17:30 UTC previous day)
+    tz = get_app_timezone()
+    query_start = datetime.combine(start_d, time.min, tzinfo=UTC) - timedelta(days=2)
+    query_end = datetime.combine(end_d, time.max, tzinfo=UTC) + timedelta(days=2)
+    
     all_entries = list(
         db.scalars(
             select(TimeEntry).where(
-                TimeEntry.start >= datetime.combine(start_d, time.min, tzinfo=UTC) - timedelta(days=1),
-                TimeEntry.start <= datetime.combine(end_d, time.max, tzinfo=UTC) + timedelta(days=1),
+                TimeEntry.start >= query_start,
+                TimeEntry.start <= query_end,
             )
         ).all()
     )
