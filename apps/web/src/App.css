@@ -42,6 +42,12 @@
   
   --purple: #8b5cf6;
   --purple-light: #ede9fe;
+
+  /* Distinct Week off vs Leave (GH #19) */
+  --week-off-bg: #e2e8f0;
+  --week-off-fg: #475569;
+  --leave-bg: #ccfbf1;
+  --leave-fg: #0f766e;
   
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -117,6 +123,11 @@
   --info-bg: #1e1b4b;
   
   --purple-light: #4c1d95;
+
+  --week-off-bg: #334155;
+  --week-off-fg: #cbd5e1;
+  --leave-bg: #134e4a;
+  --leave-fg: #5eead4;
   
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
@@ -911,6 +922,8 @@ body {
 .badge-warning { background: var(--warning-light); color: var(--warning); }
 .badge-purple { background: var(--purple-light); color: var(--purple); }
 .badge-info { background: var(--info-light); color: var(--info); }
+.badge-week-off { background: var(--week-off-bg); color: var(--week-off-fg); }
+.badge-leave { background: var(--leave-bg); color: var(--leave-fg); }
 .badge-danger { background: var(--danger-light); color: var(--danger); }
 
 .legend-text {
@@ -1002,10 +1015,11 @@ body {
 }
 
 .status-compliant { background: var(--success-light); color: var(--success); }
+.status-approved { background: var(--success-light); color: var(--success); }
 .status-not-filled { background: var(--bg-tertiary); color: var(--text-muted); }
 .status-half-filled { background: var(--warning-light); color: var(--warning); }
-.status-week-off { background: var(--purple-light); color: var(--purple); }
-.status-leave { background: var(--info-light); color: var(--info); }
+.status-week-off { background: var(--week-off-bg); color: var(--week-off-fg); }
+.status-leave { background: var(--leave-bg); color: var(--leave-fg); }
 
 .has-anomaly { position: relative; }
 
@@ -1023,6 +1037,47 @@ body {
   align-items: center;
   justify-content: center;
   font-weight: 700;
+}
+
+.compliance-list-wrap {
+  overflow-x: auto;
+  max-height: 70vh;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.compliance-list-table {
+  margin: 0;
+}
+
+.compliance-list-row {
+  cursor: pointer;
+}
+
+.compliance-list-row:hover td {
+  background: var(--bg-hover);
+}
+
+.list-status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.list-status-pill.status-approved,
+.list-status-pill.status-compliant { background: var(--success-light); color: var(--success); }
+.list-status-pill.status-not-filled { background: var(--bg-tertiary); color: var(--text-muted); }
+.list-status-pill.status-half-filled { background: var(--warning-light); color: var(--warning); }
+.list-status-pill.status-week-off { background: var(--week-off-bg); color: var(--week-off-fg); }
+.list-status-pill.status-leave { background: var(--leave-bg); color: var(--leave-fg); }
+
+.compliance-list-anomalies {
+  font-size: 12px;
+  color: var(--text-secondary);
+  max-width: 220px;
 }
 
 /* ============================================
@@ -1162,10 +1217,11 @@ body {
 }
 
 .status-badge-compliant { color: var(--success); }
+.status-badge-approved { color: var(--success); }
 .status-badge-not-filled { color: var(--text-muted); }
 .status-badge-half-filled { color: var(--warning); }
-.status-badge-week-off { color: var(--purple); }
-.status-badge-leave { color: var(--info); }
+.status-badge-week-off { color: var(--week-off-fg); }
+.status-badge-leave { color: var(--leave-fg); }
 
 .anomalies-section {
   margin-top: var(--spacing-lg);
