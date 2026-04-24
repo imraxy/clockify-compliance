@@ -4,6 +4,8 @@
 
 **Implementation landed:** monorepo with FastAPI backend, React dashboard, Docker Compose, GitHub Actions CI, Playwright API E2E, policy YAML, Clockify sync + CSV import, compliance grid, xlsx export, digest text, Jira variance endpoint (phase-2 helper).
 
+**Recently merged to `main` (2026-04-24):** PR #23 (dashboard GH #17–#19), PR #24 (timezone / day slicing GH #15–#16), PR #25 (leave/holiday/week-off/hackathon hour anomalies GH #20). CI green on merge. **Open GitHub issues:** #21, #22 (not in that batch).
+
 ## Where things live
 
 - Backend: `apps/api` — `uvicorn app.main:app`
@@ -19,6 +21,7 @@
 
 ## Next steps (operational)
 
+- Triage **#21** / **#22** (week-off anomalies, leave hours display) if still in scope.
 - Log in as **imraxy** and run the GitHub bootstrap script; then enable **branch protection** on `main` + required CI checks.
 - Run **`scripts/clockify_smoke_test.py`** with real `CLOCKIFY_API_KEY` / `CLOCKIFY_WORKSPACE_ID`.
 - Complete **`docs/CLOCKIFY_FEATURE_MATRIX.md`** after stakeholder audit.

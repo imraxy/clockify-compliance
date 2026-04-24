@@ -52,6 +52,15 @@ isProject: false
 
 # Clockify timesheet automation (web dashboard primary)
 
+## Delivery log (repository)
+
+### 2026-04-24
+
+- **Merged PR #23** (`imraxy/clockify-compliance`): dashboard fixes—`APPROVED` / `AP` consistency, list vs grid views, WO/LE contrast, Vitest and `package-lock.json` aligned with **Node 20 / npm 10** so `npm ci` passes in CI. Closes **GitHub #17–#19**.
+- **Merged PR #24**: IST-local calendar day slicing for compliance month (`tz.py`, wider DB window). Closes **#15–#16**.
+- **Merged PR #25**: anomaly flags when time is logged on leave, holiday, hackathon, or week-off. Closes **#20**.
+- **Still open:** **#21** (week-off time-entry anomalies), **#22** (leave day hours display).
+
 ## Your choice: output target
 
 You selected **option C — web app or internal tool**, with **Excel export optional**. The plan below assumes reviewers work mainly in a browser; monthly [`Book.xlsx`](Book.xlsx)-style grids can be generated for archival or stakeholders who still want spreadsheets.
