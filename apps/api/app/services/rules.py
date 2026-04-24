@@ -95,17 +95,31 @@ def classify_day(
     if override_status is not None:
         return override_status, anomalies
 
+    hours = total_hours(entries)
+    
+    # Check for time entries on days that should have none (GH #20)
+    if attendance_status == ReviewStatus.LEAVE and hours > 0:
+        anomalies.append("time_entries_on_leave")
+    if attendance_status == ReviewStatus.HOLIDAY and hours > 0:
+        anomalies.append("time_entries_on_holiday")
+    if attendance_status == ReviewStatus.WEEK_OFF and hours > 0 and not weekend_allowed:
+        anomalies.append("time_entries_on_week_off")
+    if calendar_kind == "HOLIDAY" and hours > 0:
+        if "time_entries_on_holiday" not in anomalies:
+            anomalies.append("time_entries_on_holiday")
+    if calendar_kind == "HACKATHON" and hours > 0:
+        anomalies.append("time_entries_on_hackathon")
+
+    # Early returns for calendar/attendance based statuses (after anomaly check)
     if calendar_kind == "HOLIDAY":
         return ReviewStatus.HOLIDAY, anomalies
     if calendar_kind == "HACKATHON":
         return ReviewStatus.HACKATHON, anomalies
-
     if attendance_status == ReviewStatus.WEEK_OFF:
         return ReviewStatus.WEEK_OFF, anomalies
     if attendance_status == ReviewStatus.LEAVE:
         return ReviewStatus.LEAVE, anomalies
 
-    hours = total_hours(entries)
     if hours >= thresholds.anomaly_critical_day_hours:
         anomalies.append("hours_ge_14")
     elif hours >= thresholds.anomaly_long_day_hours:

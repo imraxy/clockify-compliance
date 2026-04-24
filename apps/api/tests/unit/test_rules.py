@@ -67,3 +67,97 @@ def test_repeated_blocks_flag() -> None:
     }
     flags = repeated_identical_blocks(by_day, min_repeat_days=3)
     assert flags
+
+
+def test_anomaly_time_entries_on_leave() -> None:
+    """GH #20: Time entries logged on a Leave day should flag anomaly."""
+    th = Thresholds()
+    day = date(2026, 1, 6)
+    base = datetime(2026, 1, 6, 9, 0, tzinfo=timezone.utc)
+    
+    status, anomalies = classify_day(
+        day,
+        [TimeSlice(base, base + timedelta(hours=8))],  # 8 hours logged
+        thresholds=th,
+        attendance_status=ReviewStatus.LEAVE,
+        calendar_kind=None,
+    )
+    
+    assert status == ReviewStatus.LEAVE  # Still shows as Leave
+    assert "time_entries_on_leave" in anomalies
+
+
+def test_anomaly_time_entries_on_holiday() -> None:
+    """GH #20: Time entries logged on a Holiday should flag anomaly."""
+    th = Thresholds()
+    day = date(2026, 1, 6)
+    base = datetime(2026, 1, 6, 9, 0, tzinfo=timezone.utc)
+    
+    status, anomalies = classify_day(
+        day,
+        [TimeSlice(base, base + timedelta(hours=4))],
+        thresholds=th,
+        attendance_status=None,
+        calendar_kind="HOLIDAY",
+    )
+    
+    assert status == ReviewStatus.HOLIDAY
+    assert "time_entries_on_holiday" in anomalies
+
+
+def test_anomaly_time_entries_on_week_off() -> None:
+    """GH #20: Time entries logged on Week Off should flag anomaly."""
+    th = Thresholds()
+    day = date(2026, 1, 3)  # Saturday
+    base = datetime(2026, 1, 3, 9, 0, tzinfo=timezone.utc)
+    
+    status, anomalies = classify_day(
+        day,
+        [TimeSlice(base, base + timedelta(hours=6))],
+        thresholds=th,
+        attendance_status=ReviewStatus.WEEK_OFF,
+        calendar_kind=None,
+    )
+    
+    assert status == ReviewStatus.WEEK_OFF
+    assert "time_entries_on_week_off" in anomalies
+
+
+def test_no_anomaly_when_no_entries_on_leave() -> None:
+    """No anomaly when leave day has no time entries."""
+    th = Thresholds()
+    day = date(2026, 1, 6)
+    
+    status, anomalies = classify_day(
+        day,
+        [],  # No entries
+        thresholds=th,
+        attendance_status=ReviewStatus.LEAVE,
+        calendar_kind=None,
+    )
+    
+    assert status == ReviewStatus.LEAVE
+    assert "time_entries_on_leave" not in anomalies
+    assert len(anomalies) == 0
+
+
+def test_weekend_work_allowed_no_anomaly() -> None:
+    """When weekend_allowed=True, no anomaly for weekend with entries."""
+    th = Thresholds()
+    day = date(2026, 1, 3)  # Saturday
+    base = datetime(2026, 1, 3, 9, 0, tzinfo=timezone.utc)
+    
+    # 8 hours on weekend with weekend_allowed=True -> APPROVED
+    status, anomalies = classify_day(
+        day,
+        [TimeSlice(base, base + timedelta(hours=8))],
+        thresholds=th,
+        attendance_status=None,  # No explicit week_off code
+        calendar_kind=None,
+        is_weekend=True,
+        weekend_allowed=True,  # Approved weekend work
+    )
+    
+    assert status == ReviewStatus.APPROVED
+    assert "weekend_work_unapproved" not in anomalies
+    assert "time_entries_on_week_off" not in anomalies  # Not a week_off status day
