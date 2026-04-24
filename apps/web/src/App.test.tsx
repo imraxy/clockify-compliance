@@ -1,33 +1,45 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 
-// Mock the API module
-vi.mock('./api', () => ({
-  fetchMonth: vi.fn().mockResolvedValue({
-    rows: [
-      {
-        user_id: 1,
-        email: 'test@example.com',
-        full_name: 'Test User',
-        role: 'Developer',
-        days: {
-          '1': { status: 'COMPLIANT', hours: 8, attendance_code: 'P', anomalies: [] },
-          '2': { status: 'NOT_FILLED', hours: 0, attendance_code: null, anomalies: [] },
-          '3': { status: 'WEEK_OFF', hours: 0, attendance_code: 'WO', anomalies: [] }
-        }
-      }
-    ]
-  }),
-  login: vi.fn().mockResolvedValue('test-token'),
-  getApiUrl: vi.fn().mockReturnValue('http://localhost:8080')
-}))
+// Mock the API module — fetchMonth echoes requested year/month so dates align with the dashboard
+vi.mock('./api', () => {
+  const buildMonthPayload = (year: number, month: number) => {
+    const m = String(month).padStart(2, '0')
+    const d = (n: number) => `${year}-${m}-${String(n).padStart(2, '0')}`
+    return {
+      year,
+      month,
+      thresholds: { approved_min_hours: 8, anomaly_long_day_hours: 12 },
+      rows: [
+        {
+          user_id: 1,
+          email: 'test@example.com',
+          full_name: 'Test User',
+          role: 'Developer',
+          days: {
+            '1': { date: d(1), status: 'APPROVED', hours: 8, attendance_code: 'P', anomalies: [] },
+            '2': { date: d(2), status: 'NOT_FILLED', hours: 0, attendance_code: null, anomalies: [] },
+            '3': { date: d(3), status: 'WEEK_OFF', hours: 0, attendance_code: 'WO', anomalies: [] },
+          },
+        },
+      ],
+    }
+  }
+  return {
+    fetchMonth: vi.fn().mockImplementation(async (_token: string, y: number, m: number) => buildMonthPayload(y, m)),
+    login: vi.fn().mockResolvedValue('test-token'),
+    getApiUrl: vi.fn().mockReturnValue('http://localhost:8080'),
+  }
+})
 
 describe('App', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     localStorage.clear()
+    localStorage.setItem('token', 'test-token')
+    localStorage.setItem('darkMode', 'false')
+    localStorage.setItem('lastPage', 'dashboard')
   })
 
   describe('Login', () => {
@@ -53,7 +65,7 @@ describe('App', () => {
       await user.click(submitBtn)
       
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
     })
 
@@ -81,7 +93,7 @@ describe('App', () => {
       
       // Wait for app to load
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
       
       // Find and click dark mode toggle
@@ -121,20 +133,20 @@ describe('App', () => {
       render(<App />)
       
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
       
       // Navigate to Reports
-      const reportsBtn = screen.getByRole('button', { name: 'Reports' })
+      const reportsBtn = screen.getByRole('button', { name: /reports/i })
       await user.click(reportsBtn)
       
-      expect(screen.getByText('Comprehensive Reports')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /comprehensive reports/i })).toBeInTheDocument()
       
       // Navigate to Settings
-      const settingsBtn = screen.getByRole('button', { name: 'Settings' })
+      const settingsBtn = screen.getByRole('button', { name: /settings/i })
       await user.click(settingsBtn)
       
-      expect(screen.getByText('Appearance')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /appearance/i })).toBeInTheDocument()
     })
 
     it('should go back in navigation history', async () => {
@@ -142,28 +154,28 @@ describe('App', () => {
       render(<App />)
       
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
       
       // Navigate to multiple pages
-      await user.click(screen.getByRole('button', { name: 'Reports' }))
-      await user.click(screen.getByRole('button', { name: 'Import' }))
+      await user.click(screen.getByRole('button', { name: /reports/i }))
+      await user.click(screen.getByRole('button', { name: /import/i }))
       
       // Go back
-      const backBtn = screen.getByRole('button', { name: '← Back' })
+      const backBtn = screen.getByRole('button', { name: /back/i })
       await user.click(backBtn)
       
-      expect(screen.getByText('Comprehensive Reports')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /comprehensive reports/i })).toBeInTheDocument()
     })
 
     it('should show active nav indicator', async () => {
       render(<App />)
       
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
       
-      const dashboardNav = screen.getByRole('button', { name: 'Dashboard' })
+      const dashboardNav = screen.getByRole('button', { name: /dashboard/i })
       expect(dashboardNav).toHaveClass('active')
     })
   })
@@ -177,7 +189,7 @@ describe('App', () => {
       })
       
       // Check status cells are rendered
-      expect(screen.getByText('CO')).toBeInTheDocument()
+      expect(screen.getByText('AP')).toBeInTheDocument()
       expect(screen.getByText('NF')).toBeInTheDocument()
     })
 
@@ -217,7 +229,7 @@ describe('App', () => {
       })
       
       // Click a status cell
-      const statusCell = screen.getByText('CO')
+      const statusCell = screen.getByText('AP')
       await user.click(statusCell)
       
       await waitFor(() => {
@@ -241,6 +253,26 @@ describe('App', () => {
       
       expect(vi.mocked(fetchMonth)).toHaveBeenCalled()
     })
+
+    it('should switch between grid and list view', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('compliance-grid-view')).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: /list/i }))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('compliance-list-view')).toBeInTheDocument()
+        expect(screen.getByRole('columnheader', { name: /^Date$/i })).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: /grid/i }))
+
+      expect(screen.getByTestId('compliance-grid-view')).toBeInTheDocument()
+    })
   })
 
   describe('Reports', () => {
@@ -249,14 +281,14 @@ describe('App', () => {
       render(<App />)
       
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
       
-      await user.click(screen.getByRole('button', { name: 'Reports' }))
+      await user.click(screen.getByRole('button', { name: /reports/i }))
       
-      expect(screen.getByRole('button', { name: 'Summary' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'By Employee' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Anomalies' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /summary/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /by employee/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /anomalies/i })).toBeInTheDocument()
     })
 
     it('should switch between report types', async () => {
@@ -264,17 +296,17 @@ describe('App', () => {
       render(<App />)
       
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
       
-      await user.click(screen.getByRole('button', { name: 'Reports' }))
+      await user.click(screen.getByRole('button', { name: /reports/i }))
       
       // Click Employee tab
-      await user.click(screen.getByRole('button', { name: 'By Employee' }))
+      await user.click(screen.getByRole('button', { name: /by employee/i }))
       expect(screen.getByText('Employee-wise Breakdown')).toBeInTheDocument()
       
       // Click Anomalies tab
-      await user.click(screen.getByRole('button', { name: 'Anomalies' }))
+      await user.click(screen.getByRole('button', { name: /anomalies/i }))
       expect(screen.getByText('Anomaly Details')).toBeInTheDocument()
     })
   })
@@ -285,13 +317,13 @@ describe('App', () => {
       render(<App />)
       
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
       
-      await user.click(screen.getByRole('button', { name: 'Sync' }))
+      await user.click(screen.getByRole('button', { name: /^🔄 sync$/i }))
       
-      expect(screen.getByText('Clockify Sync')).toBeInTheDocument()
-      expect(screen.getByText('Automatic Sync')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /clockify sync/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /automatic sync/i })).toBeInTheDocument()
     })
 
     it('should allow day range selection', async () => {
@@ -299,10 +331,10 @@ describe('App', () => {
       render(<App />)
       
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
       
-      await user.click(screen.getByRole('button', { name: 'Sync' }))
+      await user.click(screen.getByRole('button', { name: /^🔄 sync$/i }))
       
       const daySelect = screen.getByRole('combobox')
       await user.selectOptions(daySelect, '14')
@@ -317,10 +349,10 @@ describe('App', () => {
       render(<App />)
       
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
       
-      await user.click(screen.getByRole('button', { name: 'Import' }))
+      await user.click(screen.getByRole('button', { name: /import/i }))
       
       expect(screen.getByText('Attendance Import')).toBeInTheDocument()
       expect(screen.getByText('Time Entries Import')).toBeInTheDocument()
@@ -333,15 +365,15 @@ describe('App', () => {
       render(<App />)
       
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
       
-      await user.click(screen.getByRole('button', { name: 'Settings' }))
+      await user.click(screen.getByRole('button', { name: /settings/i }))
       
-      expect(screen.getByText('Appearance')).toBeInTheDocument()
-      expect(screen.getByText('Compliance Thresholds')).toBeInTheDocument()
-      expect(screen.getByText('Attendance Codes')).toBeInTheDocument()
-      expect(screen.getByText('API Configuration')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /appearance/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /compliance thresholds/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /attendance codes/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /api configuration/i })).toBeInTheDocument()
     })
   })
 
@@ -351,11 +383,11 @@ describe('App', () => {
       render(<App />)
       
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
       
       // Trigger quick sync which should show notification
-      const quickSyncBtn = screen.getByRole('button', { name: 'Quick Sync' })
+      const quickSyncBtn = screen.getByRole('button', { name: /quick sync/i })
       await user.click(quickSyncBtn)
       
       // Notification should appear (though it will fail in test without API)
@@ -373,10 +405,10 @@ describe('App', () => {
       render(<App />)
       
       await waitFor(() => {
-        expect(screen.getByText('Dashboard')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
       })
       
-      const logoutBtn = screen.getByRole('button', { name: 'Logout' })
+      const logoutBtn = screen.getByRole('button', { name: /logout/i })
       await user.click(logoutBtn)
       
       await waitFor(() => {
