@@ -4,6 +4,20 @@ import { type ComplianceMonth, fetchMonth, login, getApiUrl } from './api';
 
 type Page = 'dashboard' | 'reports' | 'import' | 'sync' | 'overrides' | 'jira' | 'settings';
 
+/** Two-letter grid abbreviations; must match dashboard legend badges. */
+function complianceStatusAbbrev(status: string): string {
+  const m: Record<string, string> = {
+    APPROVED: 'AP',
+    NOT_FILLED: 'NF',
+    HALF_FILLED: 'HF',
+    WEEK_OFF: 'WO',
+    LEAVE: 'LV',
+    HOLIDAY: 'HO',
+    HACKATHON: 'HK',
+  };
+  return m[status] ?? status.slice(0, 2);
+}
+
 // Dark mode context
 function useDarkMode() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -18,21 +32,6 @@ function useDarkMode() {
   }, [darkMode]);
 
   return { darkMode, toggleDarkMode: () => setDarkMode(!darkMode) };
-}
-
-interface EmployeeStats {
-  user_id: number;
-  name: string;
-  email: string;
-  role: string;
-  approvedDays: number;
-  notFilledDays: number;
-  halfFilledDays: number;
-  weekOffDays: number;
-  leaveDays: number;
-  anomalyDays: number;
-  totalHours: number;
-  avgHours: number;
 }
 
 interface Notification {
@@ -133,14 +132,14 @@ function App() {
         </div>
 
         <nav className="sidebar-nav">
-          <NavItem icon="📊" label="Dashboard" page="dashboard" active={page === 'dashboard'} onClick={() => setPage('dashboard')} />
-          <NavItem icon="📈" label="Reports" page="reports" active={page === 'reports'} onClick={() => setPage('reports')} />
-          <NavItem icon="📥" label="Import" page="import" active={page === 'import'} onClick={() => setPage('import')} />
-          <NavItem icon="🔄" label="Sync" page="sync" active={page === 'sync'} onClick={() => setPage('sync')} />
-          <NavItem icon="✏️" label="Overrides" page="overrides" active={page === 'overrides'} onClick={() => setPage('overrides')} />
-          <NavItem icon="📋" label="Jira" page="jira" active={page === 'jira'} onClick={() => setPage('jira')} />
+          <NavItem icon="📊" label="Dashboard" active={page === 'dashboard'} onClick={() => setPage('dashboard')} />
+          <NavItem icon="📈" label="Reports" active={page === 'reports'} onClick={() => setPage('reports')} />
+          <NavItem icon="📥" label="Import" active={page === 'import'} onClick={() => setPage('import')} />
+          <NavItem icon="🔄" label="Sync" active={page === 'sync'} onClick={() => setPage('sync')} />
+          <NavItem icon="✏️" label="Overrides" active={page === 'overrides'} onClick={() => setPage('overrides')} />
+          <NavItem icon="📋" label="Jira" active={page === 'jira'} onClick={() => setPage('jira')} />
           <div className="nav-divider" />
-          <NavItem icon="⚙️" label="Settings" page="settings" active={page === 'settings'} onClick={() => setPage('settings')} />
+          <NavItem icon="⚙️" label="Settings" active={page === 'settings'} onClick={() => setPage('settings')} />
         </nav>
 
         <div className="sidebar-footer">
@@ -181,14 +180,14 @@ function App() {
           {page === 'sync' && <SyncPage token={token} addNotification={addNotification} />}
           {page === 'overrides' && <OverridesPage token={token} />}
           {page === 'jira' && <JiraPage token={token} addNotification={addNotification} />}
-          {page === 'settings' && <SettingsPage token={token} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />}
+          {page === 'settings' && <SettingsPage darkMode={darkMode} toggleDarkMode={toggleDarkMode} />}
         </div>
       </main>
     </div>
   );
 }
 
-function NavItem({ icon, label, page, active, onClick }: { icon: string; label: string; page: Page; active: boolean; onClick: () => void }) {
+function NavItem({ icon, label, active, onClick }: { icon: string; label: string; active: boolean; onClick: () => void }) {
   return (
     <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}>
       <span className="nav-icon">{icon}</span>
@@ -366,7 +365,7 @@ function DashboardPage({ token, addNotification }: { token: string; addNotificat
       Object.values(row.days).forEach((cell: any) => {
         totalHours += cell.hours || 0;
         switch (cell.status) {
-          case 'COMPLIANT': approved++; break;
+          case 'APPROVED': approved++; break;
           case 'NOT_FILLED': notFilled++; break;
           case 'HALF_FILLED': halfFilled++; break;
           case 'WEEK_OFF': weekOff++; break;
@@ -379,17 +378,33 @@ function DashboardPage({ token, addNotification }: { token: string; addNotificat
     return { approved, notFilled, halfFilled, weekOff, leave, anomalies, totalHours, totalCells };
   }, [data, dayNumbers]);
 
+  const dashboardListRows = useMemo(() => {
+    const out: Array<{
+      row: ComplianceMonth['rows'][0];
+      day: number;
+      cell: ComplianceMonth['rows'][0]['days'][string];
+    }> = [];
+    for (const row of filteredRows) {
+      for (const d of dayNumbers) {
+        const cell = row.days[String(d)];
+        if (!cell) continue;
+        out.push({ row, day: d, cell });
+      }
+    }
+    return out;
+  }, [filteredRows, dayNumbers]);
+
   return (
     <div className="page">
       <div className="page-header">
         <h1>📊 Compliance Dashboard</h1>
         <div className="toolbar">
-          <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+          <select aria-label="Dashboard month" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
             {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
               <option key={m} value={m}>{new Date(year, m-1).toLocaleDateString('en', {month: 'long'})}</option>
             ))}
           </select>
-          <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+          <select aria-label="Dashboard year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <input
@@ -399,7 +414,12 @@ function DashboardPage({ token, addNotification }: { token: string; addNotificat
             onChange={(e) => setSearch(e.target.value)}
             className="search-input"
           />
-          <button className="view-toggle" onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}>
+          <button
+            type="button"
+            className="view-toggle"
+            aria-pressed={viewMode === 'list'}
+            onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+          >
             {viewMode === 'grid' ? '📋 List' : '📊 Grid'}
           </button>
           <button onClick={exportExcel} className="btn-secondary">📥 Export Excel</button>
@@ -407,7 +427,7 @@ function DashboardPage({ token, addNotification }: { token: string; addNotificat
       </div>
 
       {stats && (
-        <div className="stats-grid">
+        <div className="stats-grid" role="region" aria-label="Dashboard stats">
           <StatCard icon="✅" label="Approved" value={stats.approved} subtext={`${Math.round(stats.approved/stats.totalCells*100)}%`} color="success" />
           <StatCard icon="⚠️" label="Not Filled" value={stats.notFilled} subtext={`${Math.round(stats.notFilled/stats.totalCells*100)}%`} color="warning" />
           <StatCard icon="🏖️" label="Week Off" value={stats.weekOff} color="info" />
@@ -422,52 +442,101 @@ function DashboardPage({ token, addNotification }: { token: string; addNotificat
       ) : data && (
         <div className="table-container">
           <div className="legend">
-            <LegendItem badge="CO" label="Compliant" color="success" />
+            <LegendItem badge="AP" label="Approved" color="success" />
             <LegendItem badge="NF" label="Not Filled" color="muted" />
             <LegendItem badge="HF" label="Half Filled" color="warning" />
-            <LegendItem badge="WO" label="Week Off" color="purple" />
-            <LegendItem badge="LV" label="Leave" color="info" />
+            <LegendItem badge="WO" label="Week Off" color="week-off" />
+            <LegendItem badge="LV" label="Leave" color="leave" />
             <LegendItem badge="!" label="Anomaly" color="danger" />
           </div>
 
-          <table className="compliance-grid">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                {dayNumbers.map((d) => {
-                  const day = new Date(year, month - 1, d);
-                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                  return <th key={d} className={isWeekend ? 'weekend-header' : ''}>{d}</th>;
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((row) => (
-                <tr key={row.user_id}>
-                  <td className="employee-cell">
-                    <span className="employee-name">{row.full_name || row.email}</span>
-                    <span className="employee-role">{row.role}</span>
-                  </td>
+          {viewMode === 'grid' ? (
+            <table className="compliance-grid" data-testid="compliance-grid-view">
+              <thead>
+                <tr>
+                  <th>Employee</th>
                   {dayNumbers.map((d) => {
-                    const cell = row.days[String(d)];
-                    const status = cell?.status || '—';
-                    const hasAnomaly = cell?.anomalies?.length > 0;
-                    return (
-                      <td
-                        key={d}
-                        className={`status-cell status-${status.toLowerCase().replace('_', '-')} ${hasAnomaly ? 'has-anomaly' : ''}`}
-                        onClick={() => setSelectedCell({ user: row, day: d })}
-                        title={cell ? `${status} - ${cell.hours}h${hasAnomaly ? ' - Anomaly!' : ''}` : ''}
-                      >
-                        {status.substring(0, 2)}
-                        {hasAnomaly && <span className="anomaly-marker">!</span>}
-                      </td>
-                    );
+                    const day = new Date(year, month - 1, d);
+                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                    return <th key={d} className={isWeekend ? 'weekend-header' : ''}>{d}</th>;
                   })}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredRows.map((row) => (
+                  <tr key={row.user_id}>
+                    <td className="employee-cell">
+                      <span className="employee-name">{row.full_name || row.email}</span>
+                      <span className="employee-role">{row.role}</span>
+                    </td>
+                    {dayNumbers.map((d) => {
+                      const cell = row.days[String(d)];
+                      const status = cell?.status || '—';
+                      const hasAnomaly = cell?.anomalies?.length > 0;
+                      const statusClass =
+                        status === '—' ? '' : `status-${status.toLowerCase().replaceAll('_', '-')}`;
+                      return (
+                        <td
+                          key={d}
+                          className={`status-cell ${statusClass} ${hasAnomaly ? 'has-anomaly' : ''}`}
+                          onClick={() => setSelectedCell({ user: row, day: d })}
+                          title={cell ? `${status} - ${cell.hours}h${hasAnomaly ? ' - Anomaly!' : ''}` : ''}
+                        >
+                          {status === '—' ? '—' : complianceStatusAbbrev(status)}
+                          {hasAnomaly && <span className="anomaly-marker">!</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="compliance-list-wrap" data-testid="compliance-list-view">
+              <table className="data-table compliance-list-table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Day</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Hours</th>
+                    <th>Attendance</th>
+                    <th>Anomalies</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dashboardListRows.map((r) => {
+                    const st = r.cell.status;
+                    const hasAnomaly = (r.cell.anomalies?.length ?? 0) > 0;
+                    const statusClass = `status-${st.toLowerCase().replaceAll('_', '-')}`;
+                    return (
+                      <tr
+                        key={`${r.row.user_id}-${r.day}`}
+                        className="compliance-list-row"
+                        onClick={() => setSelectedCell({ user: r.row, day: r.day })}
+                      >
+                        <td>{r.row.full_name || r.row.email}</td>
+                        <td>{r.day}</td>
+                        <td>{r.cell.date}</td>
+                        <td>
+                          <span className={`list-status-pill ${statusClass} ${hasAnomaly ? 'has-anomaly' : ''}`}>
+                            {st}
+                            {hasAnomaly ? ' !' : ''}
+                          </span>
+                        </td>
+                        <td>{r.cell.hours}h</td>
+                        <td>{r.cell.attendance_code ?? '—'}</td>
+                        <td className="compliance-list-anomalies">
+                          {(r.cell.anomalies ?? []).join(', ') || '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -566,7 +635,7 @@ function ReportsPage({ token, addNotification }: { token: string; addNotificatio
       Object.values(row.days).forEach((cell: any) => {
         totalHours += cell.hours || 0;
         switch (cell.status) {
-          case 'COMPLIANT': approved++; break;
+          case 'APPROVED': approved++; break;
           case 'NOT_FILLED': notFilled++; break;
           case 'HALF_FILLED': halfFilled++; break;
           case 'WEEK_OFF': weekOff++; break;
@@ -646,12 +715,12 @@ function ReportsPage({ token, addNotification }: { token: string; addNotificatio
       <div className="page-header">
         <h1>📈 Comprehensive Reports</h1>
         <div className="toolbar">
-          <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+          <select aria-label="Report month" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
             {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
               <option key={m} value={m}>{new Date(year, m-1).toLocaleDateString('en', {month: 'long'})}</option>
             ))}
           </select>
-          <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+          <select aria-label="Report year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <button onClick={exportDigest} className="btn-secondary">📄 Export Digest</button>
@@ -922,7 +991,7 @@ function SyncPage({ token, addNotification }: { token: string; addNotification: 
           {lastSync && <p className="last-sync">Last sync: {lastSync}</p>}
         </div>
         <div className="sync-actions">
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <select aria-label="Sync date range" value={days} onChange={(e) => setDays(Number(e.target.value))}>
             <option value="1">Last 1 day</option>
             <option value="7">Last 7 days</option>
             <option value="14">Last 14 days</option>
@@ -1099,7 +1168,7 @@ function JiraPage({ token, addNotification }: { token: string; addNotification: 
   );
 }
 
-function SettingsPage({ token, darkMode, toggleDarkMode }: { token: string; darkMode: boolean; toggleDarkMode: () => void }) {
+function SettingsPage({ darkMode, toggleDarkMode }: { darkMode: boolean; toggleDarkMode: () => void }) {
   return (
     <div className="page">
       <h1 className="page-title">⚙️ Settings</h1>
