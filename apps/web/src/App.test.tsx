@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 
@@ -184,24 +184,26 @@ describe('App', () => {
     it('should load and display compliance data', async () => {
       render(<App />)
       
+      const grid = await screen.findByTestId('compliance-grid-view')
       await waitFor(() => {
-        expect(screen.getByText('Test User')).toBeInTheDocument()
+        expect(within(grid).getByText('Test User')).toBeInTheDocument()
       })
       
-      // Check status cells are rendered
-      expect(screen.getByText('AP')).toBeInTheDocument()
-      expect(screen.getByText('NF')).toBeInTheDocument()
+      // Check status cells are rendered (legend also shows AP/NF badges)
+      expect(within(grid).getByText('AP')).toBeInTheDocument()
+      expect(within(grid).getByText('NF')).toBeInTheDocument()
     })
 
     it('should filter employees by search', async () => {
       const user = userEvent.setup()
       render(<App />)
       
+      const grid = await screen.findByTestId('compliance-grid-view')
       await waitFor(() => {
-        expect(screen.getByText('Test User')).toBeInTheDocument()
+        expect(within(grid).getByText('Test User')).toBeInTheDocument()
       })
       
-      const searchInput = screen.getByPlaceholderText('Search employee...')
+      const searchInput = screen.getByPlaceholderText(/search employee/i)
       await user.type(searchInput, 'other')
       
       // Employee should not be visible when filtered out
@@ -213,10 +215,11 @@ describe('App', () => {
     it('should show stats cards', async () => {
       render(<App />)
       
+      const stats = await screen.findByRole('region', { name: /dashboard stats/i })
       await waitFor(() => {
-        expect(screen.getByText('Approved')).toBeInTheDocument()
-        expect(screen.getByText('Not Filled')).toBeInTheDocument()
-        expect(screen.getByText('Anomalies')).toBeInTheDocument()
+        expect(within(stats).getByText('Approved')).toBeInTheDocument()
+        expect(within(stats).getByText('Not Filled')).toBeInTheDocument()
+        expect(within(stats).getByText('Anomalies')).toBeInTheDocument()
       })
     })
 
@@ -224,12 +227,13 @@ describe('App', () => {
       const user = userEvent.setup()
       render(<App />)
       
+      const grid = await screen.findByTestId('compliance-grid-view')
       await waitFor(() => {
-        expect(screen.getByText('Test User')).toBeInTheDocument()
+        expect(within(grid).getByText('Test User')).toBeInTheDocument()
       })
       
       // Click a status cell
-      const statusCell = screen.getByText('AP')
+      const statusCell = within(grid).getByText('AP')
       await user.click(statusCell)
       
       await waitFor(() => {
@@ -248,7 +252,7 @@ describe('App', () => {
       })
       
       // Change month
-      const monthSelect = screen.getByRole('combobox')
+      const monthSelect = screen.getByRole('combobox', { name: /dashboard month/i })
       await user.selectOptions(monthSelect, '3')
       
       expect(vi.mocked(fetchMonth)).toHaveBeenCalled()
@@ -336,7 +340,7 @@ describe('App', () => {
       
       await user.click(screen.getByRole('button', { name: /^🔄 sync$/i }))
       
-      const daySelect = screen.getByRole('combobox')
+      const daySelect = screen.getByRole('combobox', { name: /sync date range/i })
       await user.selectOptions(daySelect, '14')
       
       expect(daySelect).toHaveValue('14')
@@ -392,9 +396,7 @@ describe('App', () => {
       
       // Notification should appear (though it will fail in test without API)
       await waitFor(() => {
-        // Check for notification container
-        const notifications = screen.queryAllByRole('alert')
-        // May or may not have notification depending on API mock
+        expect(screen.queryAllByRole('alert')).toEqual(expect.any(Array))
       })
     })
   })

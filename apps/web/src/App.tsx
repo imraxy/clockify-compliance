@@ -4,6 +4,20 @@ import { type ComplianceMonth, fetchMonth, login, getApiUrl } from './api';
 
 type Page = 'dashboard' | 'reports' | 'import' | 'sync' | 'overrides' | 'jira' | 'settings';
 
+/** Two-letter grid abbreviations; must match dashboard legend badges. */
+function complianceStatusAbbrev(status: string): string {
+  const m: Record<string, string> = {
+    APPROVED: 'AP',
+    NOT_FILLED: 'NF',
+    HALF_FILLED: 'HF',
+    WEEK_OFF: 'WO',
+    LEAVE: 'LV',
+    HOLIDAY: 'HO',
+    HACKATHON: 'HK',
+  };
+  return m[status] ?? status.slice(0, 2);
+}
+
 // Dark mode context
 function useDarkMode() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -18,21 +32,6 @@ function useDarkMode() {
   }, [darkMode]);
 
   return { darkMode, toggleDarkMode: () => setDarkMode(!darkMode) };
-}
-
-interface EmployeeStats {
-  user_id: number;
-  name: string;
-  email: string;
-  role: string;
-  approvedDays: number;
-  notFilledDays: number;
-  halfFilledDays: number;
-  weekOffDays: number;
-  leaveDays: number;
-  anomalyDays: number;
-  totalHours: number;
-  avgHours: number;
 }
 
 interface Notification {
@@ -133,14 +132,14 @@ function App() {
         </div>
 
         <nav className="sidebar-nav">
-          <NavItem icon="📊" label="Dashboard" page="dashboard" active={page === 'dashboard'} onClick={() => setPage('dashboard')} />
-          <NavItem icon="📈" label="Reports" page="reports" active={page === 'reports'} onClick={() => setPage('reports')} />
-          <NavItem icon="📥" label="Import" page="import" active={page === 'import'} onClick={() => setPage('import')} />
-          <NavItem icon="🔄" label="Sync" page="sync" active={page === 'sync'} onClick={() => setPage('sync')} />
-          <NavItem icon="✏️" label="Overrides" page="overrides" active={page === 'overrides'} onClick={() => setPage('overrides')} />
-          <NavItem icon="📋" label="Jira" page="jira" active={page === 'jira'} onClick={() => setPage('jira')} />
+          <NavItem icon="📊" label="Dashboard" active={page === 'dashboard'} onClick={() => setPage('dashboard')} />
+          <NavItem icon="📈" label="Reports" active={page === 'reports'} onClick={() => setPage('reports')} />
+          <NavItem icon="📥" label="Import" active={page === 'import'} onClick={() => setPage('import')} />
+          <NavItem icon="🔄" label="Sync" active={page === 'sync'} onClick={() => setPage('sync')} />
+          <NavItem icon="✏️" label="Overrides" active={page === 'overrides'} onClick={() => setPage('overrides')} />
+          <NavItem icon="📋" label="Jira" active={page === 'jira'} onClick={() => setPage('jira')} />
           <div className="nav-divider" />
-          <NavItem icon="⚙️" label="Settings" page="settings" active={page === 'settings'} onClick={() => setPage('settings')} />
+          <NavItem icon="⚙️" label="Settings" active={page === 'settings'} onClick={() => setPage('settings')} />
         </nav>
 
         <div className="sidebar-footer">
@@ -181,14 +180,14 @@ function App() {
           {page === 'sync' && <SyncPage token={token} addNotification={addNotification} />}
           {page === 'overrides' && <OverridesPage token={token} />}
           {page === 'jira' && <JiraPage token={token} addNotification={addNotification} />}
-          {page === 'settings' && <SettingsPage token={token} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />}
+          {page === 'settings' && <SettingsPage darkMode={darkMode} toggleDarkMode={toggleDarkMode} />}
         </div>
       </main>
     </div>
   );
 }
 
-function NavItem({ icon, label, page, active, onClick }: { icon: string; label: string; page: Page; active: boolean; onClick: () => void }) {
+function NavItem({ icon, label, active, onClick }: { icon: string; label: string; active: boolean; onClick: () => void }) {
   return (
     <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}>
       <span className="nav-icon">{icon}</span>
@@ -400,12 +399,12 @@ function DashboardPage({ token, addNotification }: { token: string; addNotificat
       <div className="page-header">
         <h1>📊 Compliance Dashboard</h1>
         <div className="toolbar">
-          <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+          <select aria-label="Dashboard month" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
             {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
               <option key={m} value={m}>{new Date(year, m-1).toLocaleDateString('en', {month: 'long'})}</option>
             ))}
           </select>
-          <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+          <select aria-label="Dashboard year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <input
@@ -428,7 +427,7 @@ function DashboardPage({ token, addNotification }: { token: string; addNotificat
       </div>
 
       {stats && (
-        <div className="stats-grid">
+        <div className="stats-grid" role="region" aria-label="Dashboard stats">
           <StatCard icon="✅" label="Approved" value={stats.approved} subtext={`${Math.round(stats.approved/stats.totalCells*100)}%`} color="success" />
           <StatCard icon="⚠️" label="Not Filled" value={stats.notFilled} subtext={`${Math.round(stats.notFilled/stats.totalCells*100)}%`} color="warning" />
           <StatCard icon="🏖️" label="Week Off" value={stats.weekOff} color="info" />
@@ -483,7 +482,7 @@ function DashboardPage({ token, addNotification }: { token: string; addNotificat
                           onClick={() => setSelectedCell({ user: row, day: d })}
                           title={cell ? `${status} - ${cell.hours}h${hasAnomaly ? ' - Anomaly!' : ''}` : ''}
                         >
-                          {status === '—' ? '—' : status.substring(0, 2)}
+                          {status === '—' ? '—' : complianceStatusAbbrev(status)}
                           {hasAnomaly && <span className="anomaly-marker">!</span>}
                         </td>
                       );
@@ -716,12 +715,12 @@ function ReportsPage({ token, addNotification }: { token: string; addNotificatio
       <div className="page-header">
         <h1>📈 Comprehensive Reports</h1>
         <div className="toolbar">
-          <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+          <select aria-label="Report month" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
             {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
               <option key={m} value={m}>{new Date(year, m-1).toLocaleDateString('en', {month: 'long'})}</option>
             ))}
           </select>
-          <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+          <select aria-label="Report year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <button onClick={exportDigest} className="btn-secondary">📄 Export Digest</button>
@@ -992,7 +991,7 @@ function SyncPage({ token, addNotification }: { token: string; addNotification: 
           {lastSync && <p className="last-sync">Last sync: {lastSync}</p>}
         </div>
         <div className="sync-actions">
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <select aria-label="Sync date range" value={days} onChange={(e) => setDays(Number(e.target.value))}>
             <option value="1">Last 1 day</option>
             <option value="7">Last 7 days</option>
             <option value="14">Last 14 days</option>
@@ -1169,7 +1168,7 @@ function JiraPage({ token, addNotification }: { token: string; addNotification: 
   );
 }
 
-function SettingsPage({ token, darkMode, toggleDarkMode }: { token: string; darkMode: boolean; toggleDarkMode: () => void }) {
+function SettingsPage({ darkMode, toggleDarkMode }: { darkMode: boolean; toggleDarkMode: () => void }) {
   return (
     <div className="page">
       <h1 className="page-title">⚙️ Settings</h1>
