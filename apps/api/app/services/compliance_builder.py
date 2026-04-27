@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from app.config import load_yaml
 from app.models import AttendanceDay, CompanyCalendarDay, ComplianceOverride, TimeEntry, User
 from app.services.attendance_mapping import code_to_override_status
-from app.services.rules import ReviewStatus, TimeSlice, Thresholds, classify_day, load_thresholds, repeated_identical_blocks, total_hours, weekend_day
-from app.services.tz import entries_for_local_day_tz, get_app_timezone, local_date
+from app.services.rules import ReviewStatus, TimeSlice, classify_day, load_thresholds, repeated_identical_blocks, total_hours
+from app.services.tz import entries_for_local_day_tz
 
 UTC = timezone.utc
 
@@ -42,7 +42,6 @@ def build_month_grid(db: Session, year: int, month: int) -> dict[str, Any]:
 
     # Query window: ±2 days to catch entries that span local midnight
     # (e.g., IST entry starting at 23:00 local = 17:30 UTC previous day)
-    tz = get_app_timezone()
     query_start = datetime.combine(start_d, time.min, tzinfo=UTC) - timedelta(days=2)
     query_end = datetime.combine(end_d, time.max, tzinfo=UTC) + timedelta(days=2)
     

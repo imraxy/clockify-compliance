@@ -9,6 +9,8 @@ COPY apps/api/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY apps/api/app /app/app
+COPY apps/api/alembic.ini /app/alembic.ini
+COPY apps/api/alembic /app/alembic
 COPY config /app/config
 
 ENV CONFIG_DIR=/app/config

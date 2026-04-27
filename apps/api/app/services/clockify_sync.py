@@ -31,6 +31,16 @@ def sync_workspace_range(
         if cid and email:
             email_by_clockify_id[str(cid)] = email
 
+    try:
+        project_names = {
+            str(p["id"]): str(p.get("name") or "")
+            for p in client.list_projects(workspace_id)
+            if p.get("id")
+        }
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"sync projects: {e}")
+        project_names = {}
+
     db_users = {u.email.lower(): u for u in db.scalars(select(User)).all()}
     for cid, email in email_by_clockify_id.items():
         user = db_users.get(email)
@@ -53,12 +63,12 @@ def sync_workspace_range(
             continue
         for row in entries:
             try:
-                s, e, desc, pname, eid = parse_clockify_entry(row)
+                start_dt, end_dt, desc, pname, eid = parse_clockify_entry(row, project_names)
                 upsert_time_entry(
                     db,
                     user_id=user.id,
-                    start=s,
-                    end=e,
+                    start=start_dt,
+                    end=end_dt,
                     description=desc,
                     project_name=pname,
                     external_id=eid or None,

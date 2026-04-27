@@ -16,6 +16,7 @@ For new behavior: **write a failing test** → implement the minimum to pass →
 - Protected `main`; PR checks: lint, typecheck (if used), unit+integration, build.
 - Docker Compose for local dev and CI E2E.
 - Secrets in CI/env managers only; **`.env.example`** documents variables.
+- Production deployments must rate-limit `POST /api/v1/auth/login` at the reverse proxy or ingress. Start with **5 failed attempts per minute per IP** and tighten after observing real traffic.
 
 ## Definition of Done
 

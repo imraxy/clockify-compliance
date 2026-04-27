@@ -11,12 +11,13 @@
 | CI | `.github/workflows/ci.yml` (pytest, web build, Playwright API) |
 | Dependabot | `.github/dependabot.yml` |
 | E2E | `e2e/` Playwright (api + ui smoke) |
-| Tests | `apps/api` pytest (unit + integration), **26** tests; web Vitest |
+| Tests | `apps/api` pytest (unit + integration), **36** tests; web Vitest |
 | GitHub | `imraxy/clockify-compliance`; **#15–#20** closed (2026-04-24 merges); **#21–#22** open |
 
 ## Recently done
 
 - **2026-04-24:** Merged PR #23–#25: dashboard fixes, IST day-boundary compliance build, anomalies for time on leave/holiday/hackathon/week-off; web lockfile pinned for Node 20 `npm ci`.
+- **2026-04-27:** Implemented the remaining repo triage plan items: overrides GET + tests, Jira phase-2 stub, health/manual-sync UI fixes, timezone-aware defaults, Excel importer tests and `imported` response key, Clockify project names, production config hardening, Alembic, gated demo seed, CI lint/type/UI E2E, local artefact ignores, and `App.tsx` entrypoint split.
 - TDD-style tests for rules, CSV import, API flows, Jira helper, xlsx export; `test_tz.py` for timezone slicing.
 - SQLite StaticPool for threaded TestClient; Postgres path for Docker.
 

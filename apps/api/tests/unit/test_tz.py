@@ -1,5 +1,5 @@
 """Tests for timezone utilities."""
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 from app.services.rules import TimeSlice
 from app.services.tz import (

@@ -9,7 +9,7 @@ from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import AttendanceDay, User
+from app.models import AttendanceDay
 from app.services.merge_entries import resolve_user_by_email, upsert_time_entry
 
 
@@ -84,6 +84,7 @@ def import_time_entries_csv(db: Session, text: str) -> dict[str, Any]:
                 external_id=None,
                 source="csv",
             )
+            db.flush()
             count += 1
         except Exception as e:  # noqa: BLE001 — surface row errors
             errors.append(f"row {i}: {e}")
@@ -123,6 +124,7 @@ def import_time_entries_excel(db: Session, file_bytes: bytes) -> dict[str, Any]:
                 external_id=None,
                 source="excel",
             )
+            db.flush()
             count += 1
         except Exception as e:
             errors.append(f"row {i}: {e}")
@@ -187,7 +189,7 @@ def import_attendance_excel(db: Session, file_bytes: bytes) -> dict[str, Any]:
     wb = load_workbook(io.BytesIO(file_bytes))
     ws = wb.active
     if not ws:
-        return {"imported": 0, "errors": ["empty file"]}
+        return {"imported": 0, "rows": 0, "errors": ["empty file"]}
     
     errors: list[str] = []
     count = 0
@@ -245,4 +247,4 @@ def import_attendance_excel(db: Session, file_bytes: bytes) -> dict[str, Any]:
     
     db.commit()
     wb.close()
-    return {"rows": count, "errors": errors}
+    return {"imported": count, "rows": count, "errors": errors}

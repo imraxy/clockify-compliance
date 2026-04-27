@@ -21,7 +21,8 @@ services:
       DATABASE_URL: postgresql+psycopg2://clockify:clockify@postgres:5432/clockify
       CONFIG_DIR: /app/config
       SECRET_KEY: dev-secret-change-me
-      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,https://clockify.sublimitysoft.in
+      SEED_DEMO: "1"
     depends_on:
       postgres:
         condition: service_healthy

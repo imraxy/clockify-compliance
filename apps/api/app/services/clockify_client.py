@@ -30,6 +30,12 @@ class ClockifyClient:
             r.raise_for_status()
             return r.json()
 
+    def list_projects(self, workspace_id: str) -> list[dict[str, Any]]:
+        with self._client() as c:
+            r = c.get(f"/workspaces/{workspace_id}/projects")
+            r.raise_for_status()
+            return r.json()
+
     def list_time_entries(
         self,
         workspace_id: str,

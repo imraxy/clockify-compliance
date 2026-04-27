@@ -15,10 +15,9 @@ router = APIRouter(prefix="/api/v1/jira", tags=["jira"])
 @router.post("/variance", response_model=list[JiraVarianceRow])
 def variance(
     body: JiraVarianceRequest,
-    db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, Depends(require_roles(UserRole.reviewer, UserRole.admin))],
+    _db: Annotated[Session, Depends(get_db)],
+    _current: Annotated[User, Depends(require_roles(UserRole.reviewer, UserRole.admin))],
 ) -> list[JiraVarianceRow]:
-    _ = db  # reserved for future persisted mappings
     rows = compute_variances(
         body.estimates_hours,
         body.actual_hours,

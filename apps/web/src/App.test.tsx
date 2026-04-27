@@ -327,7 +327,8 @@ describe('App', () => {
       await user.click(screen.getByRole('button', { name: /^🔄 sync$/i }))
       
       expect(screen.getByRole('heading', { name: /clockify sync/i })).toBeInTheDocument()
-      expect(screen.getByRole('heading', { name: /automatic sync/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /manual sync/i })).toBeInTheDocument()
+      expect(screen.queryByText(/daily sync runs automatically/i)).not.toBeInTheDocument()
     })
 
     it('should allow day range selection', async () => {
@@ -378,6 +379,38 @@ describe('App', () => {
       expect(screen.getByRole('heading', { name: /compliance thresholds/i })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: /attendance codes/i })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: /api configuration/i })).toBeInTheDocument()
+    })
+
+    it('should link system status to the root health endpoint', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+      
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
+      })
+      
+      await user.click(screen.getByRole('button', { name: /settings/i }))
+      
+      const healthLink = screen.getByRole('link', { name: /system status/i })
+      expect(healthLink).toHaveAttribute('href', 'http://localhost:8080/health')
+      expect(healthLink).toHaveAttribute('rel', 'noopener noreferrer')
+    })
+  })
+
+  describe('Jira', () => {
+    it('should show a phase 2 stub instead of live credential fetch', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: /jira/i }))
+
+      expect(screen.getByRole('heading', { name: /phase 2 integration/i })).toBeInTheDocument()
+      expect(screen.queryByLabelText(/jira host/i)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /fetch variance/i })).not.toBeInTheDocument()
     })
   })
 

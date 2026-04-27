@@ -1,10 +1,14 @@
 import enum
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class UserRole(str, enum.Enum):
@@ -31,7 +35,7 @@ class User(Base):
     )
     clockify_user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     time_entries: Mapped[list["TimeEntry"]] = relationship(back_populates="user")
     attendance_days: Mapped[list["AttendanceDay"]] = relationship(back_populates="user")
@@ -88,4 +92,4 @@ class ComplianceOverride(Base):
     note: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(64))
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)

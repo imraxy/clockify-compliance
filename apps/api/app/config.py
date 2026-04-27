@@ -3,7 +3,10 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_SECRET_KEY = "dev-secret-change-in-production"
 
 
 def _repo_config_dir() -> Path:
@@ -18,13 +21,20 @@ def _repo_config_dir() -> Path:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    env: str = "development"
     database_url: str = "postgresql+psycopg2://clockify:clockify@localhost:5432/clockify"
-    secret_key: str = "dev-secret-change-in-production"
+    secret_key: str = DEFAULT_SECRET_KEY
     clockify_api_key: str = ""
     clockify_api_base: str = "https://api.clockify.me/api/v1"
     clockify_workspace_id: str = ""
     config_dir: Path = _repo_config_dir()
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,https://clockify.sublimitysoft.in"
+
+    @model_validator(mode="after")
+    def validate_production_secret(self) -> "Settings":
+        if self.env.lower() == "production" and self.secret_key == DEFAULT_SECRET_KEY:
+            raise ValueError("SECRET_KEY must be set in production")
+        return self
 
 
 @lru_cache

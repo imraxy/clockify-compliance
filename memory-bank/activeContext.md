@@ -6,6 +6,8 @@
 
 **Recently merged to `main` (2026-04-24):** PR #23 (dashboard GH #17–#19), PR #24 (timezone / day slicing GH #15–#16), PR #25 (leave/holiday/week-off/hackathon hour anomalies GH #20). CI green on merge. **Open GitHub issues:** #21, #22 (not in that batch).
 
+**Repo triage plan implemented (2026-04-27):** completed the remaining critical, high, ops, test/CI, and hygiene items from the repo issue triage plan without editing the plan file. Added overrides GET + tests, Jira phase-2 stub, health/manual-sync UI fixes, timezone-aware model defaults, Excel importer tests/response compatibility, Clockify project-name sync, production config hardening, Alembic bootstrap, CI lint/type/UI E2E gates, ignore rules, and a small `App.tsx` entrypoint split.
+
 ## Where things live
 
 - Backend: `apps/api` — `uvicorn app.main:app`

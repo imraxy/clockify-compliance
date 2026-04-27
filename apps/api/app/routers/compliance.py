@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user, require_roles
+from app.deps import require_roles
 from app.models import User, UserRole
 from app.services.alerts import build_manager_digest_text
 from app.services.compliance_builder import build_month_grid
